@@ -5,6 +5,7 @@ import { useCart } from '../../context/CartContext'
 import { fmtINR, CATEGORY_EMOJI } from '../../constants'
 import MenuItemCard from '../../components/MenuItemCard'
 import HeroCarousel from '../../components/HeroCarousel'
+import { useShopStatus } from '../../context/ShopContext'
 
 const CAT_PILL_COLORS = {
   'Pizza':           'from-red-500 to-orange-500',
@@ -17,6 +18,10 @@ const CAT_PILL_COLORS = {
 
 export default function MenuPage() {
   const { addItem } = useCart()
+  // Use the shared ShopContext for live open/closed state + phone — keeps
+  // the trust-badge row in sync with the rest of the app (NavBar, Cart,
+  // Checkout) without a duplicate /api/settings call.
+  const { isOpen } = useShopStatus()
   const [categories, setCategories] = useState([])
   const [offers, setOffers] = useState([])
   const [shop, setShop] = useState(null)
@@ -70,27 +75,48 @@ export default function MenuPage() {
         <HeroCarousel items={bestsellers} onAdd={addItem} />
       </section>
 
-      {/* ═══════════ SHOP STATUS (no address) ═══════════ */}
+      {/* ═══════════ TRUST BADGES (status + delivery + call) ═══════════ */}
       {shop && (
-        <section className="mx-auto mb-4 flex max-w-6xl items-center justify-center gap-3 px-4 text-xs">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 font-semibold text-emerald-700">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+        <section className="mx-auto mb-4 flex max-w-6xl flex-wrap items-center justify-center gap-2 px-4 text-xs sm:gap-3">
+          {/* Status pill — only show "Open" when actually open. When the
+              shop is closed, the red banner in <Navbar> already explains
+              the situation in detail (with the manager's friendly
+              closed_message), so a second "Closed" pill here is just
+              noise. Skip it. */}
+          {isOpen && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 font-semibold text-emerald-700">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+              </span>
+              Open Now
             </span>
-            {shop.is_open_now ? 'Open Now' : 'Closed'}
+          )}
+
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 font-medium text-neutral-600">
+            <span aria-hidden>⏱</span>
+            30 min delivery
           </span>
-          <span className="text-neutral-400">·</span>
-          <span className="font-medium text-neutral-600">
-            ⏱ {shop.avg_delivery_minutes || 30} min delivery
+
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 font-medium text-neutral-600">
+            <span aria-hidden>💵</span>
+            COD + UPI
           </span>
-          <span className="text-neutral-400">·</span>
-          <a
-            href={`tel:${shop.phone_primary}`}
-            className="font-semibold text-brand-red hover:underline"
-          >
-            📞 Call to Order
-          </a>
+
+          {/* Call-to-Order: real <a href="tel:"> but styled as a button
+              pill (rounded-full, red, no underline ever — no hover
+              underline, no default link underline). Hidden when no
+              phone is configured in settings. */}
+          {shop.shop_phone && (
+            <a
+              href={`tel:${shop.shop_phone}`}
+              className="inline-flex items-center gap-1.5 rounded-full bg-brand-red px-3 py-1 font-semibold text-white shadow-sm no-underline transition hover:bg-brand-red-dark hover:no-underline active:scale-95"
+              style={{ textDecoration: 'none' }}
+            >
+              <span aria-hidden>📞</span>
+              Call to Order
+            </a>
+          )}
         </section>
       )}
 
