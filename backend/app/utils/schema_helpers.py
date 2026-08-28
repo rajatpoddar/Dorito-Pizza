@@ -18,6 +18,12 @@ REQUIRED_COLUMNS = [
     ("users", "last_login_at", "TIMESTAMP", "TIMESTAMPTZ"),
     ("users", "marketing_optin", "BOOLEAN DEFAULT 1", "BOOLEAN DEFAULT TRUE"),
     ("categories", "image_url", "VARCHAR(255)", "VARCHAR(255)"),
+    # Shop availability switch — when False, /api/orders POST returns 503.
+    # Default TRUE so existing rows / fresh DBs continue accepting orders
+    # until the manager explicitly closes the shop.
+    ("shop_settings", "is_shop_open", "BOOLEAN DEFAULT 1", "BOOLEAN DEFAULT TRUE"),
+    ("shop_settings", "closed_message", "VARCHAR(255) DEFAULT 'Shop is currently closed. Please come back during business hours.'",
+     "VARCHAR(255) DEFAULT 'Shop is currently closed. Please come back during business hours.'"),
 ]
 
 

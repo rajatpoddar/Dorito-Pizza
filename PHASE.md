@@ -6,7 +6,7 @@
 
 **Legend:** ✅ done · 🟡 in progress · ⏳ planned · ❌ blocked · 🚫 dropped
 
-**Last updated:** 2026-08-28 (Phase 3 closed: P3.6 + P3.7 + bonus `/auth/me` security fix)
+**Last updated:** 2026-08-28 (Phase 3 closed + Shop Availability gate)
 
 ---
 
@@ -186,6 +186,24 @@ delivery — all flows work.
 **Bonus fix shipped with P3.6:**
 - `GET /api/auth/me` was missing `@jwt_required()` — anonymous callers hit a 500.
   Now returns 401 (tested). Tracked separately as a security item, not in original B1–B6 list.
+
+**Shop Availability gate (unplanned but blocking for production):**
+The shop used to accept orders 24×7 — including 3 AM when the kitchen is closed. Fixed
+with a master switch on `ShopSettings`:
+- `is_shop_open: bool` (default `True`) + `closed_message: str` (default friendly)
+- Manager toggles from `/admin/settings` → big OPEN/CLOSED card with status badge
+- `POST /api/orders` returns **HTTP 503** + `closed: true` + the custom message
+  when the shop is closed. In-flight kitchen / delivery staff consoles are not
+  affected — this only gates new orders.
+- Public `GET /api/settings` exposes the flag + message so the SPA can render
+  a red banner, disable the cart's "Proceed to Checkout" button, and disable
+  the checkout's "Place Order" / "Verify & Place Order" buttons.
+- `ShopContext` polls `/api/settings` every 60 s so the open/closed toggle is
+  reflected on customer screens within a minute (without page reload). The
+  server is still the source of truth — even an out-of-date tab can't slip
+  an order past the 503 gate.
+- Schema auto-heals via `utils/schema_helpers.REQUIRED_COLUMNS` — existing
+  DBs pick up the new columns on next boot.
 
 
 ### 2.5 Seed data

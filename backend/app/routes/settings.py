@@ -34,6 +34,9 @@ SETTINGS_FIELDS = (
     "hero_title",
     "hero_subtitle",
     "hero_image_url",
+    # Shop availability — master switch for accepting new orders.
+    "is_shop_open",
+    "closed_message",
 )
 
 
@@ -55,7 +58,9 @@ def update_admin_settings():
         "shop_name", "shop_tagline", "shop_address",
         "shop_phone", "shop_phone_2",
         "hero_title", "hero_subtitle", "hero_image_url",
+        "closed_message",
     )
+    bool_fields = ("is_shop_open",)
     for field in SETTINGS_FIELDS:
         if field not in data:
             continue
@@ -66,6 +71,12 @@ def update_admin_settings():
                 return jsonify(error="shop_name cannot be empty"), 400
             if field == "hero_title" and not value:
                 return jsonify(error="hero_title cannot be empty"), 400
+            # Cap closed_message to the column length (255).
+            if field == "closed_message":
+                value = value[:255]
+        elif field in bool_fields:
+            if not isinstance(value, bool):
+                return jsonify(error=f"'{field}' must be true or false"), 400
         else:
             try:
                 value = round(float(value), 2)

@@ -7,7 +7,7 @@
 > ⚠️ This file is **opinionated and informal**. For the formal spec, see `PRD.md`,
 > `ARCHITECTURE.md`, `RULES.md`, `PHASE.md`, `DESIGN.md`, `PLAN.md`.
 
-**Last refreshed:** 2026-08-28 (Phase 3 closed: P3.6 + P3.7 + bonus `/auth/me` JWT fix)
+**Last refreshed:** 2026-08-28 (Phase 3 closed + Shop Availability gate)
 
 ---
 
@@ -56,6 +56,10 @@ React SPA ──► /api/* (Flask 3 + SQLAlchemy)
    display-only. If they disagree, the server wins.
 7. **Guest orders (no JWT) get linked to the user on first OTP verify.** This is
    done in `auth.py` after `verifyOtp` succeeds. Don't refactor it away.
+8. **Shop closed = NO new orders.** `ShopSettings.is_shop_open` is the master
+   switch. `POST /api/orders` MUST return 503 + `closed: true` + the friendly
+   `closed_message` when False. In-flight kitchen/delivery consoles keep
+   working. Don't remove the gate when refactoring `routes/orders.py`.
 
 ---
 
@@ -71,6 +75,7 @@ React SPA ──► /api/* (Flask 3 + SQLAlchemy)
 | Marketing campaigns | `services/whatsapp.py` (templates + `validate_template`/`render_template`) + `scheduler.py` (timing) |
 | Marketing opt-in UI | `frontend/src/pages/customer/AccountPage.jsx` + `PUT /api/auth/me/preferences` |
 | Broadcast UI | `frontend/src/pages/admin/MarketingPage.jsx` (live template check + click-to-insert chips) |
+| Shop open/closed | `ShopSettings.is_shop_open` + `closed_message`; `POST /api/orders` returns 503 when off; `ShopContext` polls `/api/settings` every 60 s |
 | Menu seed data | `backend/seed.py` |
 | Brand colors | `frontend/tailwind.config.js` |
 | Customer pages | `frontend/src/pages/customer/` |

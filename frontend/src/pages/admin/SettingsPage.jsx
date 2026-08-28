@@ -43,6 +43,8 @@ export default function SettingsPage() {
         gst_percent: Number(form.gst_percent) || 0,
         shop_name: form.shop_name,
         shop_tagline: form.shop_tagline,
+        is_shop_open: Boolean(form.is_shop_open),
+        closed_message: form.closed_message || '',
       }
       const res = await api.put('/admin/settings', payload)
       setForm(res.data.settings); setOriginal(res.data.settings)
@@ -93,6 +95,48 @@ export default function SettingsPage() {
       )}
 
       <form onSubmit={save} className="space-y-6">
+        <section className={`card p-5 ${form.is_shop_open ? 'border-green-300' : 'border-red-300 bg-red-50/40'}`}>
+          <h2 className="mb-1 font-display text-lg font-bold">
+            {form.is_shop_open ? '🟢 Shop is OPEN' : '🔴 Shop is CLOSED'}
+          </h2>
+          <p className="mb-3 text-xs text-neutral-500">
+            Master switch. Band hone par <code>POST /api/orders</code> turant
+            503 return karega — customer app cart aur checkout me message dikh
+            jayega, koi naya order create nahi hoga. In-flight orders (pending
+            / cooking / out for delivery) par koi asar nahi.
+          </p>
+          <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-neutral-200 bg-white p-3">
+            <input
+              type="checkbox"
+              checked={Boolean(form.is_shop_open)}
+              onChange={(e) => set('is_shop_open', e.target.checked)}
+              className="h-5 w-5 cursor-pointer accent-brand-red"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-neutral-800">
+                {form.is_shop_open
+                  ? 'Customers abhi order place kar sakte hain'
+                  : 'New orders BLOCKED — kitchen/delivery unaffected'}
+              </p>
+            </div>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+              form.is_shop_open
+                ? 'bg-green-100 text-green-700'
+                : 'bg-red-100 text-red-700'
+            }`}>
+              {form.is_shop_open ? 'OPEN' : 'CLOSED'}
+            </span>
+          </label>
+          <div className="mt-3">
+            <Field
+              label="Closed message (customer ko dikhega)"
+              value={form.closed_message}
+              onChange={(v) => set('closed_message', v)}
+              placeholder="Shop is currently closed. Please come back during business hours 🙏"
+            />
+          </div>
+        </section>
+
         <section className="card p-5">
           <h2 className="mb-3 font-display text-lg font-bold">Shop Identity</h2>
           <div className="grid gap-3 sm:grid-cols-2">

@@ -78,6 +78,18 @@ def create_order():
 
     # ---- shop policy (delivery charge, free-delivery threshold, min order) ----
     settings = ShopSettings.get()
+
+    # ---- master switch: shop open / closed ----
+    # When the manager toggles the shop closed (SettingsPage), new orders are
+    # rejected with 503 + the friendly closed_message. In-flight kitchen /
+    # delivery staff consoles continue normally (this only gates POST /orders).
+    if not settings.is_shop_open:
+        return jsonify(
+            error="Shop is currently closed. Please come back during business hours.",
+            closed=True,
+            closed_message=settings.closed_message or "",
+        ), 503
+
     if settings.min_order_amount and subtotal < float(settings.min_order_amount):
         return jsonify(
             error=f"Minimum order amount ₹{float(settings.min_order_amount):.0f} hai"

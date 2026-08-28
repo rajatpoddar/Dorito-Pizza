@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom'
 import { useCart } from '../../context/CartContext'
+import { useShopStatus } from '../../context/ShopContext'
 import { fmtINR } from '../../constants'
 
 export default function CartPage() {
   const { items, updateQty, removeItem, clear, total } = useCart()
+  const { isOpen, closedMessage } = useShopStatus()
 
   if (items.length === 0) {
     return (
@@ -76,9 +78,25 @@ export default function CartPage() {
           <span>Total</span>
           <span>{fmtINR(total)}</span>
         </div>
-        <Link to="/checkout" className="btn-primary mt-2 w-full">
-          Proceed to Checkout →
-        </Link>
+
+        {/* shop-closed notice on the cart — checkout button disabled, but
+            the cart itself is preserved so the user can come back later. */}
+        {!isOpen && (
+          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-2.5 text-center text-xs text-red-700">
+            🔴 {closedMessage || 'Shop is currently closed.'}
+          </div>
+        )}
+
+        {isOpen ? (
+          <Link to="/checkout" className="btn-primary mt-2 w-full">
+            Proceed to Checkout →
+          </Link>
+        ) : (
+          <button type="button" disabled
+            className="btn-primary mt-2 w-full cursor-not-allowed opacity-50">
+            🔴 Shop band hai — checkout disabled
+          </button>
+        )}
       </div>
     </main>
   )

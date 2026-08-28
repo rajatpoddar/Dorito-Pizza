@@ -3,11 +3,13 @@ import { Link, useNavigate } from 'react-router-dom'
 import api, { errMessage } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import { useCart } from '../../context/CartContext'
+import { useShopStatus } from '../../context/ShopContext'
 import { SHOP, SHOP_ADDRESS, fmtINR, itemImage } from '../../constants'
 
 export default function CheckoutPage() {
   const { items, total: cartSubtotal, clear } = useCart()
   const { user, sendOtp, verifyOtp } = useAuth()
+  const { isOpen, closedMessage } = useShopStatus()
   const navigate = useNavigate()
 
   const [offers, setOffers] = useState([])
@@ -179,6 +181,12 @@ export default function CheckoutPage() {
 
   // ---- Place the order ----
   const placeOrder = async () => {
+    // belt-and-suspenders: the order endpoint also enforces this, but the
+    // button is disabled below so a stale tab can't slip a request in.
+    if (!isOpen) {
+      setError(closedMessage || 'Shop is currently closed.')
+      return
+    }
     setBusy(true)
     setError('')
     try {
@@ -191,7 +199,14 @@ export default function CheckoutPage() {
       clear()
       navigate(`/track/${res.data.order.id}`)
     } catch (err) {
-      setError(errMessage(err, 'Could not place the order'))
+      // The server returns 503 + closed=true + closed_message when the shop
+      // is toggled off between the page load and the click. Surface it.
+      const data = err?.response?.data
+      if (err?.response?.status === 503 && data?.closed) {
+        setError(data.closed_message || 'Shop is currently closed.')
+      } else {
+        setError(errMessage(err, 'Could not place the order'))
+      }
       setBusy(false)
     }
   }
@@ -199,6 +214,22 @@ export default function CheckoutPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 pb-16 pt-6">
       <h1 className="mb-4 font-display text-2xl font-bold">Checkout</h1>
+
+      {/* shop-closed guard — disables the whole form when the manager has
+          toggled the shop off. The order endpoint also enforces this, so
+          even an out-of-date tab can't slip a request past the server. */}
+      {!isOpen && (
+        <div className="mb-4 rounded-xl border-2 border-red-300 bg-red-50 p-4 text-center">
+          <p className="text-2xl">🔴</p>
+          <p className="mt-1 text-sm font-bold text-red-800">Shop is currently closed</p>
+          <p className="mt-1 text-xs text-red-700">
+            {closedMessage || 'Please come back during business hours.'}
+          </p>
+          <Link to="/" className="mt-3 inline-block text-xs font-semibold text-red-700 underline">
+            ← Back to menu
+          </Link>
+        </div>
+      )}
 
       {/* order summary */}
       <div className="card mb-4 p-4">
@@ -356,8 +387,8 @@ export default function CheckoutPage() {
                   Cancel
                 </button>
                 <button
-                  disabled={otpBusy || otpCode.length !== 6}
-                  className="btn-primary flex-1"
+                  disabled={otpBusy || otpCode.length !== 6 || !isOpen}
+                  className="btn-primary flex-1 disabled:opacity-50"
                 >
                   {otpBusy ? 'Verifying…' : 'Verify & Place Order'}
                 </button>
@@ -471,12 +502,14 @@ export default function CheckoutPage() {
               )}
             </div>
 
-            <button disabled={busy} className="btn-primary w-full">
-              {busy
-                ? 'Placing order…'
-                : user
-                  ? `Place Order · ${fmtINR(total)}`
-                  : `Verify OTP & Place Order · ${fmtINR(total)}`}
+            <button disabled={busy || !isOpen} className="btn-primary w-full disabled:opacity-50">
+              {!isOpen
+                ? '🔴 Shop band hai'
+                : busy
+                  ? 'Placing order…'
+                  : user
+                    ? `Place Order · ${fmtINR(total)}`
+                    : `Verify OTP & Place Order · ${fmtINR(total)}`}
             </button>
           </form>
         </>

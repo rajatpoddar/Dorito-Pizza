@@ -2,6 +2,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
+import { useShopStatus } from '../context/ShopContext'
 import { HOME_BY_ROLE, ROLE_LABELS } from '../constants'
 
 const STAFF_LINKS = {
@@ -22,6 +23,7 @@ const STAFF_LINKS = {
 export default function Navbar() {
   const { user, logout } = useAuth()
   const { count } = useCart()
+  const { isOpen, closedMessage } = useShopStatus()
   const navigate = useNavigate()
   const [drawerOpen, setDrawerOpen] = useState(false)
 
@@ -36,13 +38,28 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 bg-brand-dark text-white shadow-lg">
+      {/* shop-closed banner — only for customers (not staff consoles) */}
+      {(!isOpen && (!user || user.role === 'customer')) && (
+        <div className="bg-red-600 text-white">
+          <div className="mx-auto max-w-6xl px-4 py-2 text-center text-sm">
+            <span className="font-semibold">🔴 Shop abhi band hai.</span>{' '}
+            {closedMessage || 'Please come back during business hours.'}
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto flex max-w-6xl items-center gap-x-3 px-4 py-3">
         <Link to={user ? HOME_BY_ROLE[user.role] : '/'} className="flex shrink-0 items-center gap-2">
           <span className="text-2xl">🍕</span>
           <span className="font-display text-lg font-bold leading-tight">
             Dorito <span className="text-brand-gold">&amp; Bakery</span>
-            <span className="block text-[10px] font-normal tracking-wide text-neutral-400">
-              Palojori · Open
+            <span
+              title={!isOpen ? closedMessage || 'Shop is currently closed' : ''}
+              className={`block text-[10px] font-normal tracking-wide ${
+                isOpen ? 'text-green-400' : 'text-red-400'
+              }`}
+            >
+              Palojori · {isOpen ? '🟢 Open' : '🔴 Closed'}
             </span>
           </span>
         </Link>

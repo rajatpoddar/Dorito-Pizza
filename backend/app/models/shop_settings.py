@@ -49,6 +49,15 @@ class ShopSettings(db.Model):
     )
     shop_phone = db.Column(db.String(20), nullable=True, default="6202965250")
     shop_phone_2 = db.Column(db.String(20), nullable=True, default="9939794303")
+
+    # ---- Shop availability (master switch) ----
+    # When False, /api/orders POST returns 503 and the customer UI shows the
+    # `closed_message`. Defaults to True so a fresh DB still accepts orders.
+    is_shop_open = db.Column(db.Boolean, nullable=False, default=True)
+    closed_message = db.Column(
+        db.String(255), nullable=False,
+        default="Shop is currently closed. Please come back during business hours 🙏",
+    )
     updated_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -81,6 +90,10 @@ class ShopSettings(db.Model):
             "hero_title": self.hero_title,
             "hero_subtitle": self.hero_subtitle,
             "hero_image_url": self.hero_image_url,
+            # Shop availability — used by Navbar badge, MenuPage banner, and
+            # the order create endpoint (returns 503 if False).
+            "is_shop_open": bool(self.is_shop_open),
+            "closed_message": self.closed_message or "",
         }
 
     def admin_dict(self) -> dict:
