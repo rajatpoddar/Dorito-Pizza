@@ -15,7 +15,7 @@
  *   change the CACHE constant) to force-activate and clear old caches
  *   after every deploy.
  */
-const BUILD = '2026-08-28-hero'
+const BUILD = '2026-08-28-hero-priority'
 const CACHE = 'dorito-' + BUILD
 const APP_SHELL = ['/', '/index.html', '/manifest.json', '/favicon.svg', '/icon-192.png', '/icon-512.png']
 

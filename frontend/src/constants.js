@@ -76,15 +76,27 @@ export const HERO_FALLBACK_SLIDES = [
   },
 ]
 
-/** Pick the best hero image for a given menu item (transparent PNG-friendly). */
+/** Pick the best hero image for a given menu item (transparent PNG-friendly).
+ *
+ * Priority is intentionally HERO_IMAGES > item.image_url, NOT the other
+ * way around. Reason: the /assets/menu/*.png files in the DB are opaque
+ * item photos for the menu grid; the /assets/hero/*.png files are the
+ * curated marketing slides the shop owner wants on the home page. If we
+ * honoured item.image_url first, any item that already had a DB image
+ * would silently fall back to the old opaque thumbnail and the new
+ * transparent hero slide would never show — exactly the bug reported
+ * ("hero png ek baar dikhta hai, fir original item png aa jaata hai").
+ */
 export function heroImageFor(item) {
   if (!item) return HERO_FALLBACK_SLIDES[0].img
-  // 1. honour the DB-set image_url if present
-  if (item.image_url) return item.image_url
-  // 2. try a name match in HERO_IMAGES
   const key = String(item.name || '').trim().toLowerCase()
+  // 1. curated hero PNG (always wins if the name matches one of the 4
+  //    curated slides, even when item.image_url is also set).
   if (HERO_IMAGES[key]) return HERO_IMAGES[key]
-  // 3. by category — best-effort visual identity
+  // 2. otherwise use the item's own photo (for slides like Chicken Pizza,
+  //    Paneer Pizza, etc. that the manager might feature later).
+  if (item.image_url) return item.image_url
+  // 3. category-based best-effort (pizzas share the Veg Pizza art)
   const cat = String(item.category_name || '').toLowerCase()
   if (cat.includes('pizza')) return HERO_IMAGES['veg pizza']
   return HERO_FALLBACK_SLIDES[0].img

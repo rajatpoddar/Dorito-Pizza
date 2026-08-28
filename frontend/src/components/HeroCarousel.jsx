@@ -22,10 +22,17 @@ const TAGS = ['🔥 Best Seller', '⭐ Chef Special', '🌽 Sweet & Savory', '�
  *    items  – array of menu items (with image_url) to use as slides
  *    onAdd  – callback(item) when the "Add" CTA on a slide is clicked
  *
- *  Image policy:
- *    - 1st priority: item.image_url (DB-driven)
- *    - 2nd priority: heroImageFor(name) → /assets/hero/<file>.png
- *    - 3rd priority: HERO_FALLBACK_SLIDES (used when items=[])
+ *  Image policy (see constants.js#heroImageFor):
+ *    - 1st: HERO_IMAGES[name]   → /assets/hero/<file>.png (curated marketing)
+ *    - 2nd: item.image_url       → /assets/menu/<file>.png  (DB-driven)
+ *    - 3rd: category-based best-effort
+ *    - 4th: HERO_FALLBACK_SLIDES (only when items=[])
+ *
+ *  Note: HERO_IMAGES wins over item.image_url on purpose. The /assets/menu
+ *  PNGs are opaque item photos for the menu grid; the /assets/hero PNGs
+ *  are the curated slides the shop owner wants on the home page. Honouring
+ *  item.image_url first would cause a silent regression to the old
+ *  thumbnail on any item that has a DB image set.
  *
  *  Mobile: image is ALWAYS visible (previously `hidden sm:block`).
  */
@@ -102,7 +109,23 @@ export default function HeroCarousel({ items = [], onAdd }) {
                 loading={i === 0 ? 'eager' : 'lazy'}
                 draggable="false"
                 className="absolute right-2 top-1/2 h-44 w-auto -translate-y-1/2 object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.35)] sm:right-4 sm:h-64 md:right-10 md:h-72 lg:right-14 lg:h-[22rem]"
-                onError={(e) => { e.currentTarget.style.display = 'none' }}
+                onError={(e) => {
+                  // Image failed to load — try the next-best source before
+                  // giving up. Order: item.image_url → category fallback →
+                  // hide. This way a broken /assets/hero/*.png still
+                  // shows the menu photo instead of a blank hero.
+                  const el = e.currentTarget
+                  const item = items[i]
+                  if (el.dataset.fallbackStep === undefined) el.dataset.fallbackStep = '0'
+                  let step = parseInt(el.dataset.fallbackStep, 10)
+                  step += 1
+                  el.dataset.fallbackStep = String(step)
+                  if (step === 1 && item && item.image_url && el.src !== item.image_url) {
+                    el.src = item.image_url
+                  } else {
+                    el.style.display = 'none'
+                  }
+                }}
               />
             )}
             <div className="relative z-10 flex h-full flex-col justify-center px-4 sm:px-8 md:px-12 lg:px-14"

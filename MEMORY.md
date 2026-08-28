@@ -7,7 +7,7 @@
 > ⚠️ This file is **opinionated and informal**. For the formal spec, see `PRD.md`,
 > `ARCHITECTURE.md`, `RULES.md`, `PHASE.md`, `DESIGN.md`, `PLAN.md`.
 
-**Last refreshed:** 2026-08-28 (Phase 3 + Shop Availability gate + Hero PNGs + SW cache fix)
+**Last refreshed:** 2026-08-28 (Phase 3 + Shop gate + Hero PNGs + SW cache + Hero image priority fix)
 
 ---
 
@@ -68,6 +68,13 @@ React SPA ──► /api/* (Flask 3 + SQLAlchemy)
    "drop-in replacement" asset. The CACHE name is versioned
    (`'dorito-' + BUILD`); bump BUILD on every deploy to clear stale
    entries for existing users.
+10. **Hero image priority = HERO_IMAGES > item.image_url, NOT the other way
+    around.** The `/assets/menu/*.png` in `MenuItem.image_url` are the
+    opaque item thumbnails for the menu grid; the `/assets/hero/*.png`
+    are the curated marketing slides. If we honoured `item.image_url`
+    first, every item that already had a DB photo would silently fall
+    back to that opaque thumbnail and the new transparent hero slide
+    would never show. See `heroImageFor()` in `src/constants.js`.
 
 ---
 
