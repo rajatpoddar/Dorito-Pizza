@@ -7,7 +7,7 @@
 > ⚠️ This file is **opinionated and informal**. For the formal spec, see `PRD.md`,
 > `ARCHITECTURE.md`, `RULES.md`, `PHASE.md`, `DESIGN.md`, `PLAN.md`.
 
-**Last refreshed:** 2026-08-28 (Phase 3 closed + Shop Availability gate)
+**Last refreshed:** 2026-08-28 (Phase 3 + Shop Availability gate + Hero PNGs + SW cache fix)
 
 ---
 
@@ -60,6 +60,14 @@ React SPA ──► /api/* (Flask 3 + SQLAlchemy)
    switch. `POST /api/orders` MUST return 503 + `closed: true` + the friendly
    `closed_message` when False. In-flight kitchen/delivery consoles keep
    working. Don't remove the gate when refactoring `routes/orders.py`.
+9. **Service-worker cache must NEVER cache `/assets/hero/*`.** Those PNGs
+   are the marketing slides the shop owner drops in place (same URL, new
+   bytes). Cache-first for them is a real UX bug — first paint shows the
+   new image, then the SW swaps in the cached old one. The list lives in
+   `NEVER_CACHE_PREFIXES` in `public/sw.js`; add to it for any future
+   "drop-in replacement" asset. The CACHE name is versioned
+   (`'dorito-' + BUILD`); bump BUILD on every deploy to clear stale
+   entries for existing users.
 
 ---
 
