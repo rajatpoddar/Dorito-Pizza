@@ -10,6 +10,7 @@ import MyOrdersPage from './pages/customer/MyOrdersPage'
 import TrackOrderPage from './pages/customer/TrackOrderPage'
 import LoginPage from './pages/customer/LoginPage'
 import RegisterPage from './pages/customer/RegisterPage'
+import AccountPage from './pages/customer/AccountPage'
 
 import DashboardPage from './pages/admin/DashboardPage'
 import ManageMenuPage from './pages/admin/ManageMenuPage'
@@ -59,6 +60,14 @@ export default function App() {
           element={
             <ProtectedRoute roles={['customer', 'manager']}>
               <MyOrdersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/account"
+          element={
+            <ProtectedRoute roles={['customer']}>
+              <AccountPage />
             </ProtectedRoute>
           }
         />

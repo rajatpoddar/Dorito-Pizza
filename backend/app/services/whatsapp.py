@@ -221,6 +221,78 @@ def _shop_footer() -> str:
     return f"📍 {cfg['SHOP_ADDRESS']}"
 
 
+# ----------------------------------------------------------------- templates
+# Whitelist of placeholder variables the manager can use in broadcast /
+# campaign messages. Anything outside this list is rejected so a typo can't
+# silently drop a variable or expose internal config names.
+ALLOWED_TEMPLATE_VARS = ("name", "order_count", "last_ordered_at")
+
+
+def list_template_vars() -> list[dict]:
+    """Expose the whitelist to the frontend (so the Marketing page can show
+    a hint and the manager knows what they can interpolate)."""
+    return [
+        {"key": "name", "sample": "Anita", "description": "Customer ka naam"},
+        {"key": "order_count", "sample": "3", "description": "Total orders placed"},
+        {"key": "last_ordered_at", "sample": "5 din pehle",
+         "description": "Last order kitne din pehle"},
+    ]
+
+
+# {{var}} placeholders. Strict format: 1–32 word chars, no spaces, no braces
+# inside. Anything else raises ValueError so the broadcast endpoint returns
+# 400 with a clear message instead of silently sending a half-rendered
+# message.
+_VAR_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]{0,31})\s*\}\}")
+
+
+def validate_template(text: str) -> list[str]:
+    """Return the list of unique variable names found in `text`.
+
+    Raises ValueError when:
+      • the string has an unclosed brace (e.g. `{{name`), or
+      • a placeholder uses a name not in ALLOWED_TEMPLATE_VARS.
+    """
+    if not text:
+        return []
+    # Find all `{{ ... }}` matches
+    placeholders = _VAR_RE.findall(text)
+    # Detect malformed sequences: any `{{` that didn't match the regex means
+    # the user wrote `{{ foo}` or `{{1invalid}}` etc.
+    open_count = text.count("{{")
+    if open_count != len(placeholders):
+        raise ValueError(
+            "Template me ek ya zyada {{variable}} galat format me hai. "
+            "Allowed: " + ", ".join(f"{{{{{v}}}}}" for v in ALLOWED_TEMPLATE_VARS)
+        )
+    seen: list[str] = []
+    for name in placeholders:
+        if name not in ALLOWED_TEMPLATE_VARS:
+            raise ValueError(
+                f"Unknown template variable: '{{{{{name}}}}}'. "
+                f"Allowed: {', '.join(ALLOWED_TEMPLATE_VARS)}"
+            )
+        if name not in seen:
+            seen.append(name)
+    return seen
+
+
+def render_template(text: str, ctx: dict) -> str:
+    """Substitute `{{var}}` placeholders with values from `ctx`. Missing keys
+    become an empty string. Runs validate_template first so callers get the
+    same error for bad names."""
+    if not text:
+        return text
+    validate_template(text)
+
+    def _sub(match: re.Match) -> str:
+        key = match.group(1)
+        value = ctx.get(key, "")
+        return str(value)
+
+    return _VAR_RE.sub(_sub, text)
+
+
 def otp_message(code: str) -> str:
     return (
         "🍕 *Dorito Pizza and Bakery*\n\n"

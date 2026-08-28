@@ -516,12 +516,30 @@ def analytics():
 
 
 # ------------------------------------------------------------------ broadcast
+@admin_bp.get("/broadcast/vars")
+@roles_required("manager")
+def broadcast_vars():
+    """Return the whitelist of template variables the manager can use in
+    broadcast / campaign messages. Frontend uses this to render an inline
+    reference (e.g. "Available: {{name}}, {{order_count}}")."""
+    from app.services.whatsapp import list_template_vars
+
+    return jsonify(variables=list_template_vars())
+
+
 @admin_bp.post("/broadcast")
 @roles_required("manager")
 def broadcast():
-    """WhatsApp marketing to opted-in customers + in-app notification."""
-    from app.models import Notification, WhatsAppOutbox
-    from app.services.whatsapp import queue_message
+    """WhatsApp marketing to opted-in customers + in-app notification.
+
+    `title` and `message` may contain `{{name}}`, `{{order_count}}`,
+    `{{last_ordered_at}}` placeholders. They are validated against a
+    whitelist (see `services/whatsapp.py`) and rendered per-recipient so
+    each customer gets a personalised message.
+    """
+    from app.models import Notification, Order, WhatsAppOutbox
+    from app.services import whatsapp
+    from app.services.whatsapp import render_template
 
     data = request.get_json(silent=True) or {}
     title = (data.get("title") or "").strip()
@@ -531,28 +549,61 @@ def broadcast():
     if not title or not message:
         return jsonify(error="title and message required"), 400
 
+    # --- validate templates up front (clear 400, not silent send) ---
+    try:
+        whatsapp.validate_template(title)
+        whatsapp.validate_template(message)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+
     query = User.query.filter(User.role == User.ROLE_CUSTOMER, User.is_active.is_(True))
     if segment != "all":
         query = query.filter(User.marketing_optin.is_(True))
     recipients = query.limit(current_app.config["BROADCAST_CAP"]).all()
 
-    full_msg = (
-        "🍕 *Dorito Pizza and Bakery*\n\n"
-        f"*{title}*\n{message}\n\n"
-        f"🔗 Order: {current_app.config.get('TRACK_BASE_URL', '')}\n"
-        f"📍 {current_app.config['SHOP_ADDRESS']}\n"
-        "_Reply STOP to opt out_"
-    )
+    track = current_app.config.get("TRACK_BASE_URL", "")
+    shop = current_app.config["SHOP_ADDRESS"]
     count = 0
     for u in recipients:
-        queue_message(u.phone, full_msg, kind=WhatsAppOutbox.KIND_MARKETING)
-        db.session.add(Notification(user_id=u.id, title=title[:118],
-                                    body=message[:298], type=Notification.TYPE_OFFER))
+        # ---- per-customer context for template rendering ----
+        orders = (
+            Order.query.filter(Order.customer_phone == u.phone)
+            .order_by(Order.created_at.desc())
+            .all()
+        )
+        order_count = len(orders)
+        last_ordered_at = ""
+        if orders and orders[0].created_at:
+            delta = (datetime.now(timezone.utc) - orders[0].created_at).days
+            last_ordered_at = f"{delta} din pehle" if delta >= 0 else ""
+
+        ctx = {
+            "name": u.name or "",
+            "order_count": order_count,
+            "last_ordered_at": last_ordered_at,
+        }
+        personalised_title = render_template(title, ctx)
+        personalised_body = render_template(message, ctx)
+
+        full_msg = (
+            "🍕 *Dorito Pizza and Bakery*\n\n"
+            f"*{personalised_title}*\n{personalised_body}\n\n"
+            f"🔗 Order: {track}\n"
+            f"📍 {shop}\n"
+            "_Reply STOP to opt out_"
+        )
+        whatsapp.queue_message(u.phone, full_msg, kind=WhatsAppOutbox.KIND_MARKETING)
+        db.session.add(Notification(user_id=u.id, title=personalised_title[:118],
+                                    body=personalised_body[:298],
+                                    type=Notification.TYPE_OFFER))
         count += 1
     db.session.commit()
 
-    return jsonify(sent=count, capped=len(recipients) >= current_app.config["BROADCAST_CAP"],
-                   note="Queued — worker pacing ke saath bhejega (anti-ban)")
+    return jsonify(
+        sent=count,
+        capped=len(recipients) >= current_app.config["BROADCAST_CAP"],
+        note="Queued — worker pacing ke saath bhejega (anti-ban)",
+    )
 
 
 @admin_bp.get("/whatsapp/status")

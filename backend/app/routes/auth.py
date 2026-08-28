@@ -3,7 +3,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, current_app, jsonify, request
-from flask_jwt_extended import create_access_token
+from flask_jwt_extended import create_access_token, jwt_required
 
 from app.extensions import db
 from app.models import Order, OtpCode, User
@@ -186,8 +186,36 @@ def otp_verify():
 
 
 @auth_bp.get("/me")
+@jwt_required()
 def me():
     user = db_get_current_user()
     if user is None:
         return jsonify(error="User not found"), 404
+    return jsonify(user=user.to_dict())
+
+
+@auth_bp.put("/me/preferences")
+def update_preferences():
+    """Update per-user preferences (currently: marketing opt-in flag).
+
+    Customers can opt-out of WhatsApp marketing at any time. Staff may also
+    update their own flag (useful when testing the campaign system). Returns
+    the full updated user dict so the client can refresh its state.
+    """
+    from flask_jwt_extended import verify_jwt_in_request
+
+    verify_jwt_in_request()
+    user = db_get_current_user()
+    if user is None:
+        return jsonify(error="User not found"), 404
+    if not user.is_active:
+        return jsonify(error="This account has been deactivated"), 403
+
+    data = request.get_json(silent=True) or {}
+    if "marketing_optin" in data:
+        if not isinstance(data["marketing_optin"], bool):
+            return jsonify(error="marketing_optin must be true or false"), 400
+        user.marketing_optin = data["marketing_optin"]
+
+    db.session.commit()
     return jsonify(user=user.to_dict())

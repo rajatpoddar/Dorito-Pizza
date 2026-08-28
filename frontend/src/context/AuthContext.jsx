@@ -50,6 +50,14 @@ export function AuthProvider({ children }) {
     setUser(null)
   }, [])
 
+  /** Update the current user's preferences (e.g. marketing_optin).
+   *  PATCHes PUT /api/auth/me/preferences and refreshes local user state. */
+  const updatePreferences = useCallback(async (patch) => {
+    const res = await api.put('/auth/me/preferences', patch)
+    setUser(res.data.user)
+    return res.data.user
+  }, [])
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center text-neutral-500">
@@ -60,7 +68,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, login, register, sendOtp, verifyOtp, logout, errMessage }}
+      value={{ user, login, register, sendOtp, verifyOtp, logout, updatePreferences, errMessage }}
     >
       {children}
     </AuthContext.Provider>

@@ -7,7 +7,7 @@
 > ⚠️ This file is **opinionated and informal**. For the formal spec, see `PRD.md`,
 > `ARCHITECTURE.md`, `RULES.md`, `PHASE.md`, `DESIGN.md`, `PLAN.md`.
 
-**Last refreshed:** 2026-08-28
+**Last refreshed:** 2026-08-28 (Phase 3 closed: P3.6 + P3.7 + bonus `/auth/me` JWT fix)
 
 ---
 
@@ -68,7 +68,9 @@ React SPA ──► /api/* (Flask 3 + SQLAlchemy)
 | Auth flow | `backend/app/routes/auth.py` + `frontend/src/context/AuthContext.jsx` |
 | WhatsApp send logic | `backend/app/services/whatsapp.py` + `worker.py` |
 | Outbox table | `models/whatsapp_outbox.py` |
-| Marketing campaigns | `services/whatsapp.py` (templates) + `scheduler.py` (timing) |
+| Marketing campaigns | `services/whatsapp.py` (templates + `validate_template`/`render_template`) + `scheduler.py` (timing) |
+| Marketing opt-in UI | `frontend/src/pages/customer/AccountPage.jsx` + `PUT /api/auth/me/preferences` |
+| Broadcast UI | `frontend/src/pages/admin/MarketingPage.jsx` (live template check + click-to-insert chips) |
 | Menu seed data | `backend/seed.py` |
 | Brand colors | `frontend/tailwind.config.js` |
 | Customer pages | `frontend/src/pages/customer/` |

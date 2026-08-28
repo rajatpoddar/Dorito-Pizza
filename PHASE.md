@@ -6,7 +6,7 @@
 
 **Legend:** ✅ done · 🟡 in progress · ⏳ planned · ❌ blocked · 🚫 dropped
 
-**Last updated:** 2026-08-28
+**Last updated:** 2026-08-28 (Phase 3 closed: P3.6 + P3.7 + bonus `/auth/me` security fix)
 
 ---
 
@@ -154,7 +154,7 @@ delivery — all flows work.
 
 ---
 
-## 4. Phase 3 — Marketing Automation 🟡 IN PROGRESS (95%)
+## 4. Phase 3 — Marketing Automation ✅ COMPLETE (100%)
 
 | ID | Deliverable | Status | Notes |
 |----|-------------|--------|-------|
@@ -163,10 +163,29 @@ delivery — all flows work.
 | P3.3 | Winback nudge (14-day inactive) | ✅ | `kind=winback_14d` |
 | P3.4 | Manager broadcast endpoint (200 msg / batch cap) | ✅ | `POST /api/admin/broadcast` |
 | P3.5 | WhatsApp status + outbox audit pages in admin | ✅ | `MarketingPage.jsx` |
-| P3.6 | Opt-in / opt-out flag on `User` | 🟡 | column exists; UI toggle ⏳ |
-| P3.7 | Template variable validation | ⏳ | small remaining work |
+| P3.6 | Opt-in / opt-out flag on `User` | ✅ | DB column + `PUT /api/auth/me/preferences` + `AccountPage.jsx` toggle |
+| P3.7 | Template variable validation | ✅ | Whitelist `{{name}}/{{order_count}}/{{last_ordered_at}}`, 400 on unknown/malformed, per-recipient render in `broadcast` + `GET /admin/broadcast/vars` for UI hint |
 
-**Blocker:** none. UI opt-out toggle is the only visible gap.
+**Blocker:** none. Both remaining items shipped.
+
+**P3.6 detail:**
+- `User.to_dict()` exposes `marketing_optin`
+- `PUT /api/auth/me/preferences` accepts `{marketing_optin: bool}`, validates type, 400 on bad input
+- New `pages/customer/AccountPage.jsx` shows profile + opt-in toggle + quick links
+- `Navbar` shows "Account" link for logged-in customers (desktop + mobile drawer)
+- Route `/account` guarded by `ProtectedRoute roles=['customer']`
+
+**P3.7 detail:**
+- `services/whatsapp.py`: `ALLOWED_TEMPLATE_VARS = ("name", "order_count", "last_ordered_at")`
+- `validate_template(text)` raises `ValueError` for unknown / malformed `{{...}}`
+- `render_template(text, ctx)` substitutes per-recipient context (name, order count, days since last order)
+- `POST /api/admin/broadcast` validates title + message up front (clear 400, not silent send)
+- `GET /api/admin/broadcast/vars` returns the whitelist for the frontend to render an inline click-to-insert hint
+- `MarketingPage.jsx`: live template check (same 400 surfaced before Send), click-to-insert chips, Send button disabled when template is invalid
+
+**Bonus fix shipped with P3.6:**
+- `GET /api/auth/me` was missing `@jwt_required()` — anonymous callers hit a 500.
+  Now returns 401 (tested). Tracked separately as a security item, not in original B1–B6 list.
 
 
 ### 2.5 Seed data
@@ -245,6 +264,7 @@ Pulled from `PLAN.md` §9 and not yet started:
 | POST | /otp/send | public | ✅ |
 | POST | /otp/verify | public | ✅ |
 | GET | /me | JWT | ✅ |
+| PUT | /me/preferences | JWT | ✅ |
 
 ### 8.2 Menu — `/api/menu`
 | Method | Path | Access | Test |
@@ -288,7 +308,8 @@ Pulled from `PLAN.md` §9 and not yet started:
 | GET | /offers | manager | ✅ |
 | POST/PUT/DELETE | /offers[/:id] | manager | ✅ |
 | GET | /analytics | manager | 🟡 |
-| POST | /broadcast | manager | 🟡 |
+| GET | /broadcast/vars | manager | ✅ |
+| POST | /broadcast | manager | ✅ |
 | GET | /whatsapp/status | manager | 🟡 |
 | GET | /outbox | manager | 🟡 |
 

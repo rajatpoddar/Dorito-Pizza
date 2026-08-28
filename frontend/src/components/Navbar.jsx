@@ -53,6 +53,9 @@ export default function Navbar() {
             <>
               <NavLink to="/" end className={({ isActive }) => `rounded-lg px-3 py-2 ${isActive ? 'bg-white/10 text-brand-gold' : 'hover:bg-white/10'}`}>Menu</NavLink>
               <NavLink to="/track" className={({ isActive }) => `rounded-lg px-3 py-2 ${isActive ? 'bg-white/10 text-brand-gold' : 'hover:bg-white/10'}`}>Track Order</NavLink>
+              {user && user.role === 'customer' && (
+                <NavLink to="/account" className={({ isActive }) => `rounded-lg px-3 py-2 ${isActive ? 'bg-white/10 text-brand-gold' : 'hover:bg-white/10'}`}>Account</NavLink>
+              )}
             </>
           )}
 
@@ -111,6 +114,9 @@ export default function Navbar() {
               <>
                 <NavLink onClick={() => setDrawerOpen(false)} to="/" end className="rounded-lg px-3 py-2.5 hover:bg-white/10">🍕 Menu</NavLink>
                 <NavLink onClick={() => setDrawerOpen(false)} to="/track" className="rounded-lg px-3 py-2.5 hover:bg-white/10">🔍 Track Order</NavLink>
+                {user && user.role === 'customer' && (
+                  <NavLink onClick={() => setDrawerOpen(false)} to="/account" className="rounded-lg px-3 py-2.5 hover:bg-white/10">👤 Account</NavLink>
+                )}
                 <NavLink onClick={() => setDrawerOpen(false)} to="/cart" className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-white/10">
                   <span>🛒 Cart</span>
                   {count > 0 && <span className="rounded-full bg-brand-red px-2 text-xs font-bold">{count}</span>}

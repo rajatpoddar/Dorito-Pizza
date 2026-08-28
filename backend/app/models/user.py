@@ -50,6 +50,7 @@ class User(db.Model):
             "phone": self.phone,
             "role": self.role,
             "is_active": self.is_active,
+            "marketing_optin": bool(self.marketing_optin),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

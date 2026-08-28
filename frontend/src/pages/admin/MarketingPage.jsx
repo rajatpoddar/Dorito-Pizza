@@ -5,6 +5,7 @@ export default function MarketingPage() {
   const [form, setForm] = useState({ title: '', message: '', segment: 'optin' })
   const [wa, setWa] = useState(null)
   const [outbox, setOutbox] = useState([])
+  const [vars, setVars] = useState([])
   const [result, setResult] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -12,16 +13,38 @@ export default function MarketingPage() {
   const load = useCallback(() => {
     api.get('/admin/whatsapp/status').then((r) => setWa(r.data)).catch(() => {})
     api.get('/admin/outbox').then((r) => setOutbox(r.data.messages || [])).catch(() => {})
+    api.get('/admin/broadcast/vars').then((r) => setVars(r.data.variables || [])).catch(() => {})
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  /** Live template check — surface the same 400 the API will return so the
+   *  manager sees the problem before clicking Send. */
+  const liveTemplateError = (() => {
+    const allVars = new Set(vars.map((v) => v.key))
+    for (const field of ['title', 'message']) {
+      const text = form[field] || ''
+      // count `{{` occurrences — anything that doesn't match a known var fails
+      const matches = [...text.matchAll(/\{\{\s*([A-Za-z_][A-Za-z0-9_]{0,31})\s*\}\}/g)]
+      const openCount = (text.match(/\{\{/g) || []).length
+      if (openCount !== matches.length) {
+        return `${field}: malformed {{...}} placeholder`
+      }
+      for (const m of matches) {
+        if (!allVars.has(m[1])) {
+          return `${field}: unknown variable {{${m[1]}}}`
+        }
+      }
+    }
+    return ''
+  })()
 
   const send = async (e) => {
     e.preventDefault()
     setBusy(true); setResult(''); setError('')
     try {
       const res = await api.post('/admin/broadcast', form)
-      setResult(`✅ ${res.data.sent} customers ko WhatsApp + in-app notification queued`)
+      setResult(`✅ ${res.data.sent} customers ko personalised WhatsApp + in-app notification queued`)
       setForm({ title: '', message: '', segment: 'optin' })
       load()
     } catch (err) { setError(errMessage(err)) }
@@ -72,10 +95,37 @@ export default function MarketingPage() {
           </select>
           <input className="input" placeholder="Title (e.g. 🎉 Festive Offer!)" value={form.title}
                  onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-          <textarea className="input min-h-[90px]" placeholder="Message (e.g. Sab items par 20% off — aaj hi aayein!)"
+          <textarea className="input min-h-[90px]" placeholder="Message (e.g. {{name}}, sab items par 20% off — {{order_count}} orders ke liye!)"
                     value={form.message}
                     onChange={(e) => setForm({ ...form, message: e.target.value })} required />
-          <button disabled={busy} className="btn-primary w-full">
+
+          {/* template variable hint (P3.7) */}
+          {vars.length > 0 && (
+            <div className="rounded-lg bg-neutral-50 p-2.5 text-xs text-neutral-600">
+              <p className="mb-1 font-semibold text-neutral-700">Personalise with:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {vars.map((v) => (
+                  <code
+                    key={v.key}
+                    title={v.description}
+                    onClick={() => setForm({ ...form, message: `${form.message} {{${v.key}}}` })}
+                    className="cursor-pointer rounded bg-white px-2 py-0.5 text-[11px] font-mono text-brand-dark shadow-sm ring-1 ring-neutral-200 hover:bg-brand-gold/20"
+                  >
+                    {`{{${v.key}}}`}
+                  </code>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[10px] text-neutral-400">Click to insert. Max 1-2 messages / week per customer.</p>
+            </div>
+          )}
+
+          {liveTemplateError && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              ⚠️ {liveTemplateError}
+            </p>
+          )}
+
+          <button disabled={busy || !!liveTemplateError} className="btn-primary w-full disabled:opacity-50">
             {busy ? 'Sending…' : '📣 Send Broadcast'}
           </button>
         </form>
