@@ -26,26 +26,27 @@ command -v docker >/dev/null 2>&1 || die "docker not found. Install Docker first
 docker compose version >/dev/null 2>&1 || die "docker compose (v2) not found."
 
 # ── Free-port detection ─────────────────────────────────────────
-# Returns the first listening port in $taken, or falls back to $default.
-free_port() {
-    local default=$1; shift
-    local taken=("$@")
-    for p in "${taken[@]}"; do
-        if ss -tlnp 2>/dev/null | grep -q ":${p} " || \
-           netstat -tlnp 2>/dev/null | grep -q ":${p} "; then
-            continue
-        fi
-        echo "$p"; return
-    done
-    echo "$default"
+# Checks if a port is already in use; returns the port if free,
+# otherwise tries the next candidate.
+port_is_used() {
+    local port=$1
+    netstat -tlnp 2>/dev/null | grep -qE ":${port} " && return 0 || return 1
 }
 
-# Collect currently-used ports
-USED_PORTS=($(netstat -tlnp 2>/dev/null | awk 'NR>2 {split($4,a,":"); print a[length(a)]}' | sort -un))
+find_free_port() {
+    local -a candidates=("$@")
+    for p in "${candidates[@]}"; do
+        if ! port_is_used "$p"; then
+            echo "$p"; return 0
+        fi
+    done
+    die "All candidate ports in use: ${candidates[*]}"
+}
 
-BACKEND_PORT="${BACKEND_PORT:-$(free_port 8555 "${USED_PORTS[@]}")}"
-FRONTEND_PORT="${FRONTEND_PORT:-$(free_port 8580 "${USED_PORTS[@]}")}"
-DB_PORT="${DB_PORT:-$(free_port 5433 "${USED_PORTS[@]}")}"
+# If user already set ports via env, respect them; otherwise auto-detect.
+BACKEND_PORT="${BACKEND_PORT:-$(find_free_port 8555 8556 8557 8558 8559 8560)}"
+FRONTEND_PORT="${FRONTEND_PORT:-$(find_free_port 8580 8581 8582 8583 8584 8585)}"
+DB_PORT="${DB_PORT:-$(find_free_port 5433 5434 5435 5437 5438 5439)}"
 
 info "Using ports — backend:${BACKEND_PORT}  frontend:${FRONTEND_PORT}  db:${DB_PORT}"
 
