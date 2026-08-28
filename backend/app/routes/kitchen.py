@@ -1,5 +1,5 @@
 """Kitchen Display System (KDS) routes — the cook's view."""
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 
 from app.extensions import db
 from app.models import Order

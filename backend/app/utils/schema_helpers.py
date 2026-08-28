@@ -22,8 +22,11 @@ REQUIRED_COLUMNS = [
     # Default TRUE so existing rows / fresh DBs continue accepting orders
     # until the manager explicitly closes the shop.
     ("shop_settings", "is_shop_open", "BOOLEAN DEFAULT 1", "BOOLEAN DEFAULT TRUE"),
-    ("shop_settings", "closed_message", "VARCHAR(255) DEFAULT 'Shop is currently closed. Please come back during business hours.'",
-     "VARCHAR(255) DEFAULT 'Shop is currently closed. Please come back during business hours.'"),
+    (
+        "shop_settings", "closed_message",
+        "VARCHAR(255) DEFAULT 'Shop is currently closed. Please come back during business hours.'",
+        "VARCHAR(255) DEFAULT 'Shop is currently closed. Please come back during business hours.'",
+    ),
 ]
 
 

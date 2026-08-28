@@ -32,11 +32,17 @@ def notify_order_event(order, event: str) -> None:
         notify_user(order.customer_id, "Order ready 🍕",
                     f"{order.order_number} pack ho chuka hai.", Notification.TYPE_ORDER, order.id)
     elif event == "out_for_delivery":
-        notify_user(order.customer_id, "Out for delivery 🛵",
-                    f"OTP ready rakhein: {order.delivery_otp}", Notification.TYPE_ORDER, order.id)
+        notify_user(
+            order.customer_id, "Out for delivery 🛵",
+            f"OTP ready rakhein: {order.delivery_otp}",
+            Notification.TYPE_ORDER, order.id,
+        )
     elif event == "delivered":
         notify_user(order.customer_id, "Delivered ✅",
                     f"{order.order_number} deliver ho gaya. Dhanyavaad!", Notification.TYPE_ORDER, order.id)
     elif event == "cancelled":
-        notify_user(order.customer_id, "Order cancelled",
-                    f"{order.order_number} cancel kar diya gaya. {shop}", Notification.TYPE_ORDER, order.id)
+        notify_user(
+            order.customer_id, "Order cancelled",
+            f"{order.order_number} cancel kar diya gaya. {shop}",
+            Notification.TYPE_ORDER, order.id,
+        )

@@ -7,7 +7,6 @@ import logging
 import time
 
 from app import create_app
-from app.models import WhatsAppOutbox
 from app.services.whatsapp import process_outbox
 
 
@@ -23,7 +22,10 @@ def main() -> None:
             if sent:
                 _log.info("outbox_drain", extra={"sent": sent})
         except Exception as exc:  # noqa: BLE001
-            _log.warning("worker_loop_error", exc_info=True, extra={"exc_class": type(exc).__name__})
+            _log.warning(
+                "worker_loop_error", exc_info=True,
+                extra={"exc_class": type(exc).__name__},
+            )
         time.sleep(3)
 
 

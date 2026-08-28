@@ -76,7 +76,7 @@ class TestAccessLogLine:
         assert r2.headers["X-Request-ID"] == "my-trace-123"
 
     def test_log_line_carries_request_id(self, app, client, capture_app_logs):
-        r = client.get("/api/health", headers={"X-Request-ID": "trace-abc"})
+        client.get("/api/health", headers={"X-Request-ID": "trace-abc"})
         access_lines = [ln for ln in capture_app_logs.lines() if '"request"' in ln]
         assert access_lines
         data = json.loads(access_lines[-1])

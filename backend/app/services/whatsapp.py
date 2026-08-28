@@ -45,7 +45,9 @@ def _get_json(url: str, api_key: str, timeout: int = 10):
 
 
 # ----------------------------------------------------------------- queueing
-def queue_message(phone: str, message: str, kind: str, order_id: int | None = None) -> WhatsAppOutbox:
+def queue_message(
+    phone: str, message: str, kind: str, order_id: int | None = None
+) -> WhatsAppOutbox:
     """Add a message to the outbox (sent by the worker with rate limiting)."""
     row = WhatsAppOutbox(
         phone=normalise_phone(phone),

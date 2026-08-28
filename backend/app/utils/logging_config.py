@@ -159,4 +159,3 @@ def _install_request_middleware(app: Flask) -> None:
         resp = jsonify(error="Something went wrong on our side. Please try again.")
         resp.status_code = 500
         return resp
-

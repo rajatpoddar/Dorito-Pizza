@@ -173,7 +173,7 @@ def track_order(order_id):
     If logged in, order must belong to the user — no phone needed.
     Delivery OTP visible once out for delivery.
     """
-    from datetime import timezone  # local import keeps top clean
+    from datetime import timezone  # noqa: F401 — local import keeps top clean
 
     user = _optional_user()
 

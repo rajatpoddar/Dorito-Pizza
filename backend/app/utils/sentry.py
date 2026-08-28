@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import os
 import sentry_sdk
-from flask import Flask, g, request
+from flask import Flask
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from sentry_sdk.integrations.flask import FlaskIntegration
 

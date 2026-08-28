@@ -90,4 +90,3 @@ def update_admin_settings():
     if changed:
         db.session.commit()
     return jsonify(settings=row.admin_dict(), updated=changed)
-

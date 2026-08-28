@@ -96,5 +96,3 @@ class TestOtpVerify:
         with app.app_context():
             row = M.query.filter_by(phone="9876555555").order_by(M.id.desc()).first()
             assert row.attempts >= 5 or row.consumed_at is not None
-
-

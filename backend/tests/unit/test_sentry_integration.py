@@ -7,7 +7,7 @@ is empty (the default in dev / test / CI).
 import pytest
 
 from app import create_app
-from app.utils.sentry import _scrub_event, init_sentry
+from app.utils.sentry import _scrub_event
 
 
 @pytest.mark.unit
@@ -31,7 +31,7 @@ class TestSentryOptIn:
         # Use a syntactically-valid but unroutable DSN so the SDK
         # accepts the init but never actually talks to a server.
         monkeypatch.setenv("SENTRY_DSN", "https://public@example.com/1")
-        app = create_app()
+        create_app()  # must not raise
         # No exception → pass.
         assert True
 
