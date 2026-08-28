@@ -6,7 +6,7 @@
 
 **Legend:** ✅ done · 🟡 in progress · ⏳ planned · ❌ blocked · 🚫 dropped
 
-**Last updated:** 2026-08-28 (Phase 4 batch 2: P4.3 coverage gate + P4.7 Flask-Limiter, 65 tests / 65% coverage)
+**Last updated:** 2026-08-28 (Phase 4 batch 3: P4.5 Sentry + P4.6 structured JSON logging, 79 tests / 65% coverage)
 
 ---
 
@@ -20,9 +20,11 @@
 | WhatsApp outbox | ✅ stable | Worker draining 1 msg / 2.5 s |
 | PWA | ✅ installable | Manifest + service worker shipped |
 | Docker compose | ✅ stable | db + backend + frontend (nginx) |
-| Test coverage | ✅ gated | 65 pytest tests, 65% line coverage, 60% floor enforced in CI |
+| Test coverage | ✅ gated | 79 pytest tests, 65% line coverage, 60% floor enforced in CI |
 | CI / CD | ✅ green | GitHub Actions: backend lint+test+coverage, frontend lint+build, compose smoke |
 | Rate limiting | ✅ | Flask-Limiter: per-IP limits on all public auth/OTP endpoints + guest checkout |
+| Error tracking | ✅ | Sentry SDK wired; only initialises when `SENTRY_DSN` is set (no-op in dev/test) |
+| Structured logging | ✅ | JSON logs to stdout in production; `request_id` propagated via `flask.g` and into every log line; human-readable fallback in dev |
 | Production deploy | 🟡 manual | Docker compose works; no auto-deploy |
 
 ---

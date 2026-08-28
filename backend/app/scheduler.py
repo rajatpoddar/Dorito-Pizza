@@ -6,6 +6,7 @@ Every 30 min (only 09:00–21:00 IST):
   • winback_14d — no order in 14–30 days (once per ISO week per user)
 All sends are logged in marketing_logs (unique per phone+kind+period).
 """
+import logging
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -13,6 +14,9 @@ from app import create_app
 from app.extensions import db
 from app.models import MarketingLog, Order, User
 from app.services.whatsapp import queue_message
+
+
+_log = logging.getLogger("dorito.scheduler")
 
 
 def _ist_now() -> datetime:
@@ -97,15 +101,15 @@ def _queue_once(user, phone: str, kind: str, period_key: str, message: str) -> b
 
 def main() -> None:
     app = create_app()
-    print("📣 Marketing scheduler started (every 30 min, 09–21 IST)…")
+    _log.info("scheduler_started", extra={"interval_s": 1800, "window_ist": "09-21"})
     while True:
         try:
             with app.app_context():
                 stats = run_campaigns(app)
             if stats:
-                print("   campaigns:", stats)
+                _log.info("campaigns_run", extra=stats)
         except Exception as exc:  # noqa: BLE001
-            print("   scheduler error:", exc)
+            _log.warning("scheduler_loop_error", exc_info=True, extra={"exc_class": type(exc).__name__})
         time.sleep(1800)
 
 

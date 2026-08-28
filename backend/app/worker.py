@@ -3,6 +3,7 @@
 Run:  python -m app.worker
 Picks queued messages and sends them via Evolution API with min interval + jitter.
 """
+import logging
 import time
 
 from app import create_app
@@ -10,16 +11,19 @@ from app.models import WhatsAppOutbox
 from app.services.whatsapp import process_outbox
 
 
+_log = logging.getLogger("dorito.worker")
+
+
 def main() -> None:
     app = create_app()
-    print("📮 WhatsApp worker started (outbox pacing on)…")
+    _log.info("worker_started", extra={"pacing_s": app.config.get("WA_MIN_INTERVAL", 4.0)})
     while True:
         try:
             sent = process_outbox(app, batch_limit=20)
             if sent:
-                print(f"   sent {sent} message(s)")
+                _log.info("outbox_drain", extra={"sent": sent})
         except Exception as exc:  # noqa: BLE001
-            print("   worker error:", exc)
+            _log.warning("worker_loop_error", exc_info=True, extra={"exc_class": type(exc).__name__})
         time.sleep(3)
 
 

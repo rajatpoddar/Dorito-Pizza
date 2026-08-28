@@ -58,6 +58,15 @@ def create_app(config_object=None):
         resp.status_code = 429
         return resp
 
+    # --- Sentry (P4.5): only initializes when SENTRY_DSN is set ---
+    from app.utils.sentry import init_sentry
+    init_sentry(app)
+
+    # --- Structured JSON logging (P4.6) — install BEFORE the routes
+    #     so the per-request middleware is wired first. ---------------
+    from app.utils.logging_config import install_json_logging
+    install_json_logging(app)
+
     # --- import models so Flask-Migrate can see them ---
     from app import models  # noqa: F401
 
@@ -101,6 +110,7 @@ def create_app(config_object=None):
     # dedicated worker process for pacing control.
     if app.config.get("WORKER_ENABLED", True) and os.getenv("DORITO_DISABLE_WORKER", "0") != "1":
         _start_inprocess_worker(app)
+        app.logger.info("inprocess_worker_started")
 
     return app
 
@@ -134,15 +144,17 @@ def _start_inprocess_worker(app: Flask) -> None:
             with app.app_context():
                 process_outbox(app, batch_limit=5)
         except Exception as exc:  # noqa: BLE001
-            log.warning("worker boot probe failed: %s", exc)
+            log.warning("worker_boot_probe_failed", exc_info=True,
+                        extra={"exc_class": type(exc).__name__})
         while True:
             try:
                 with app.app_context():
                     process_outbox(app, batch_limit=10)
             except Exception as exc:  # noqa: BLE001
-                log.warning("worker loop error: %s", exc)
+                log.warning("worker_loop_error", exc_info=True,
+                            extra={"exc_class": type(exc).__name__})
             time.sleep(3)
 
     t = threading.Thread(target=_loop, name="wa-outbox-worker", daemon=True)
     t.start()
-    app.logger.info("📮 in-process WhatsApp outbox worker started")
+    app.logger.info("inprocess_worker_started", extra={"pacing_s": app.config.get("WA_MIN_INTERVAL", 4.0)})
