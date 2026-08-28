@@ -1,0 +1,360 @@
+# 🗺️ Implementation Phases & Status - Dorito Pizza and Bakery
+
+> **Living document** tracking what has been shipped, what is in progress, and what
+> remains for each release phase. Read alongside `PLAN.md` (the original plan) and
+> `RULES.md` (conventions). Update this file at the end of every merge to `main`.
+
+**Legend:** ✅ done · 🟡 in progress · ⏳ planned · ❌ blocked · 🚫 dropped
+
+**Last updated:** 2026-08-28
+
+---
+
+## 0. Project Health Snapshot
+
+| Area | State | Note |
+|------|-------|------|
+| Backend Flask API | ✅ stable | All v2 routes wired + tested |
+| Frontend React SPA | ✅ stable | 4 role dashboards functional |
+| PostgreSQL schema | ✅ stable | Alembic migrations + auto-heal helpers |
+| WhatsApp outbox | ✅ stable | Worker draining 1 msg / 2.5 s |
+| PWA | ✅ installable | Manifest + service worker shipped |
+| Docker compose | ✅ stable | db + backend + frontend (nginx) |
+| Test coverage | 🟡 partial | `lifecycle_test.py` + `phase2_test.py` exist; no CI gate yet |
+| CI / CD | ⏳ planned | No GitHub Actions yet |
+| Production deploy | 🟡 manual | Docker compose works; no auto-deploy |
+
+---
+
+## 1. Phase 0 — Project Discovery & Plan (M0) ✅ COMPLETE
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| M0.1 | Extract full menu from shop photo into `PLAN.md` | ✅ |
+| M0.2 | Identify 4 user roles + status flow | ✅ |
+| M0.3 | Pick tech stack (Flask + React + Postgres + Evolution) | ✅ |
+| M0.4 | Folder layout, env strategy, deployment topology | ✅ |
+| M0.5 | Author `README.md` and `PLAN.md` | ✅ |
+| M0.6 | Author this `PHASE.md` tracker | ✅ |
+
+**Evidence:** `PLAN.md` contains the verbatim 6-category × 34-item menu with prices;
+`README.md` quick-start is one command (`./run_local.sh`); folder layout matches
+`PLAN.md` §3 1-for-1.
+
+---
+
+## 2. Phase 1 — Core Platform (v1.0) ✅ COMPLETE
+
+### 2.1 Backend skeleton
+
+| ID | Deliverable | Status | File / Note |
+|----|-------------|--------|-------------|
+| M1.1 | Application factory + extensions | ✅ | `backend/app/__init__.py`, `extensions.py` |
+| M1.2 | Dev / Docker / Test config classes | ✅ | `backend/config.py` |
+| M1.3 | `requirements.txt` pinned | ✅ | Flask 3, SQLAlchemy, JWT-Extended, Migrate, CORS, psycopg2, requests, gunicorn, python-dotenv |
+| M1.4 | `Dockerfile` (slim, non-root, gunicorn) | ✅ | `backend/Dockerfile` |
+| M1.5 | `wsgi.py` entrypoint | ✅ | `backend/wsgi.py` |
+
+### 2.2 Data models
+
+| ID | Model | Status | Notes |
+|----|-------|--------|-------|
+| M2.1 | `User` (4 roles) | ✅ | `models/user.py` — phone unique, password hash, role enum |
+| M2.2 | `Category` | ✅ | `models/category.py` — slug, image, sort order |
+| M2.3 | `MenuItem` | ✅ | `models/menu_item.py` — price, availability, category FK |
+| M2.4 | `Order` | ✅ | `models/order.py` — status enum, payment enum, delivery OTP, totals |
+| M2.5 | `OrderItem` | ✅ | `models/order_item.py` — name/price snapshot at purchase time |
+| M2.6 | Migrations (Alembic) | ✅ | `backend/migrations/versions/` |
+| M2.7 | Schema auto-heal helpers | ✅ | `utils/schema_helpers.py` |
+
+### 2.3 Auth & RBAC
+
+| ID | Deliverable | Status | Endpoint |
+|----|-------------|--------|----------|
+| M3.1 | Password register / login | ✅ | `POST /api/auth/register`, `POST /api/auth/login` |
+| M3.2 | JWT issuance + `@jwt_required` | ✅ | `utils/decorators.py` |
+| M3.3 | `@roles_required(...)` decorator | ✅ | `utils/decorators.py` |
+| M3.4 | `GET /api/auth/me` | ✅ | returns current user |
+
+### 2.4 Domain routes
+
+| ID | Module | Status | Endpoints |
+|----|--------|--------|-----------|
+| M4.1 | `routes/menu.py` | ✅ | `GET /api/menu/categories`, `GET /api/menu/items`, `GET /api/menu/items/:id` |
+| M4.2 | `routes/orders.py` | ✅ | `POST /api/orders`, `GET /api/orders/my`, `GET /api/orders/:id/track` |
+| M4.3 | `routes/admin.py` | ✅ | dashboard, orders list, category + menu CRUD, staff CRUD, assign / cancel |
+| M4.4 | `routes/kitchen.py` | ✅ | `GET /api/kitchen/orders`, `PATCH /api/kitchen/orders/:id/status` |
+| M4.5 | `routes/delivery.py` | ✅ | `GET /api/delivery/orders`, `PATCH /api/delivery/orders/:id/status` |
+
+### 2.6 Frontend scaffold
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| M6.1 | Vite + React 18 + Tailwind v3 + React Router v6 | ✅ |
+| M6.2 | `api/client.js` axios with JWT interceptor | ✅ |
+| M6.3 | `AuthContext` + `CartContext` | ✅ |
+| M6.4 | Role-aware routing in `App.jsx` | ✅ |
+
+### 2.7 Customer app pages
+
+| ID | Page | Status | File |
+|----|------|--------|------|
+| M7.1 | Menu (categories + items + search) | ✅ | `pages/customer/MenuPage.jsx` |
+| M7.2 | Cart (qty adjust, remove, totals) | ✅ | `pages/customer/CartPage.jsx` |
+| M7.3 | Checkout (address, payment, OTP gate) | ✅ | `pages/customer/CheckoutPage.jsx` |
+| M7.4 | Order tracking (live polling 5 s) | ✅ | `pages/customer/TrackOrderPage.jsx` |
+| M7.5 | My orders history | ✅ | `pages/customer/MyOrdersPage.jsx` |
+| M7.6 | Login / Register | ✅ | `pages/customer/LoginPage.jsx`, `RegisterPage.jsx` |
+
+### 2.8 Manager / Kitchen / Delivery pages
+
+| ID | Page | Status | File |
+|----|------|--------|------|
+| M8.1 | Manager dashboard (KPIs) | ✅ | `pages/admin/DashboardPage.jsx` |
+| M8.2 | Manage menu (CRUD) | ✅ | `pages/admin/ManageMenuPage.jsx` |
+| M8.3 | Manage orders (assign / cancel / filter) | ✅ | `pages/admin/ManageOrdersPage.jsx` |
+| M8.4 | Manage staff | ✅ | `pages/admin/ManageStaffPage.jsx` |
+| M8.5 | Kitchen display (queue + advance) | ✅ | `pages/kitchen/KitchenDisplayPage.jsx` |
+| M8.6 | Delivery agent (assigned + OTP) | ✅ | `pages/delivery/DeliveryPage.jsx` |
+
+### 2.9 Deployment
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| M9.1 | `docker-compose.yml` (db + backend + frontend) | ✅ |
+| M9.2 | `frontend/Dockerfile` (multi-stage node → nginx) | ✅ |
+| M9.3 | `frontend/nginx.conf` (SPA fallback + `/api` proxy) | ✅ |
+| M9.4 | `run_local.sh` (no-Docker quick start) | ✅ |
+| M9.5 | `backend/.env.example` template | ✅ |
+
+**Phase 1 exit criteria — all ✅.** Manual smoke-tested end-to-end on local SQLite
+and Docker PostgreSQL.
+
+---
+
+## 3. Phase 2 — WhatsApp OTP, Offers, Notifications, Marketing, PWA (v2.0) ✅ COMPLETE
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P2.1 | OTP login via WhatsApp (Evolution API) | ✅ | `POST /api/auth/otp/send`, `POST /api/auth/otp/verify`; auto-creates customer; links guest orders |
+| P2.2 | Evolution API integration (outbox + 2.5 s pacing) | ✅ | `services/whatsapp.py`, `worker.py`, `models/whatsapp_outbox.py` |
+| P2.3 | Delivery OTP (4-digit, agent verifies) | ✅ | Generated on order create, sent via WA, verified in `delivery.py` |
+| P2.4 | Offers / discounts (admin CRUD + server-compute) | ✅ | `models/offer.py`, `routes/offers.py`, `routes/admin.py` `/offers/*` |
+| P2.5 | In-app notifications (bell, read/unread) | ✅ | `models/notification.py`, `routes/notifications.py`, `services/notify.py` |
+| P2.6 | Admin analytics (7-day trends, KPIs) | ✅ | `GET /api/admin/analytics` |
+| P2.7 | PWA (manifest + service worker + icons) | ✅ | `public/manifest.json`, `public/sw.js`, `public/icon-192.png`, `icon-512.png` |
+| P2.8 | UI upgrade (hero carousel, SVG menu images, favicon) | ✅ | `components/HeroCarousel.jsx`, `public/images/menu/*.svg`, `public/favicon.svg` |
+| P2.9 | New DB tables (`otp_codes`, `offers`, `notifications`, `whatsapp_outbox`, `marketing_logs`) | ✅ | in `models/` |
+| P2.10 | All new API endpoints wired + tested | ✅ | see `PHASE.md` §6 below |
+
+**Phase 2 evidence:** `backend/tests/phase2_test.py` runs green on local SQLite; manual
+end-to-end: customer logs in via WhatsApp OTP, places order with a 10% off coupon,
+receives confirmation message, manager assigns agent, agent verifies 4-digit OTP on
+delivery — all flows work.
+
+---
+
+## 4. Phase 3 — Marketing Automation 🟡 IN PROGRESS (95%)
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P3.1 | `scheduler.py` runs every 30 min 9am–9pm IST | ✅ | `app/scheduler.py` |
+| P3.2 | Reorder nudge (7-day window, dedup via `marketing_logs`) | ✅ | `kind=reorder_7d` |
+| P3.3 | Winback nudge (14-day inactive) | ✅ | `kind=winback_14d` |
+| P3.4 | Manager broadcast endpoint (200 msg / batch cap) | ✅ | `POST /api/admin/broadcast` |
+| P3.5 | WhatsApp status + outbox audit pages in admin | ✅ | `MarketingPage.jsx` |
+| P3.6 | Opt-in / opt-out flag on `User` | 🟡 | column exists; UI toggle ⏳ |
+| P3.7 | Template variable validation | ⏳ | small remaining work |
+
+**Blocker:** none. UI opt-out toggle is the only visible gap.
+
+
+### 2.5 Seed data
+
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| M5.1 | `seed.py` populates 6 categories + 34 items | ✅ |
+| M5.2 | Seed staff: manager / cook / delivery / demo customer | ✅ |
+| M5.3 | Idempotent (safe to run twice) | ✅ |
+
+
+---
+
+## 5. Phase 4 — Hardening & Quality ⏳ PLANNED (0%)
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P4.1 | GitHub Actions CI (lint + tests) | ⏳ | `.github/workflows/ci.yml` |
+| P4.2 | Pytest split: unit + integration + e2e | ⏳ | today both tests are in `tests/` |
+| P4.3 | Coverage report + 70% gate | ⏳ | `pytest --cov` + `coverage.yml` |
+| P4.4 | `pre-commit` (black, isort, eslint, prettier) | ⏳ |  |
+| P4.5 | Sentry / error tracking integration | ⏳ |  |
+| P4.6 | Structured JSON logging | ⏳ | replace `current_app.logger` text format |
+| P4.7 | API rate-limiter middleware (flask-limiter) | ⏳ | already declared in `RULES.md` §5 |
+| P4.8 | Backups: daily `pg_dump` cron + restore runbook | ⏳ |  |
+| P4.9 | Helm / k8s manifests (alternative to compose) | ⏳ |  |
+
+**Why now?** Code is feature-complete; without CI/CD and proper test gates, regressions
+can land unnoticed. This is the next **highest-leverage** work.
+
+---
+
+## 6. Phase 5 — v3.0 Enhancements ⏳ PLANNED (0%)
+
+Pulled from `PLAN.md` §9 and not yet started:
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P5.1 | Android APK via Capacitor (`frontend/android/`, `build_apk.sh`) | ⏳ |  |
+| P5.2 | UPI payment gateway (Razorpay) | ⏳ | today UPI = "pay to shop UPI id" + manual confirm |
+| P5.3 | WebSockets via Flask-SocketIO (replace polling) | ⏳ |  |
+| P5.4 | Item image upload (S3 or local volume) | ⏳ |  |
+| P5.5 | Thermal KOT / order printing | ⏳ |  |
+| P5.6 | Multi-language toggle (Hindi / English) | ⏳ |  |
+| P5.7 | Customer feedback / rating system | ⏳ |  |
+| P5.8 | Push notifications (web push API) | ⏳ |  |
+| P5.9 | Loyalty / rewards points | ⏳ |  |
+| P5.10 | Multi-shop / franchise support | ⏳ |  |
+
+
+---
+
+## 7. Open Bugs & Tech Debt 🟡
+
+| ID | Description | Severity | Owner | Status |
+|----|-------------|----------|-------|--------|
+| B1 | Notification bell does not auto-refresh on tab focus | low | — | ⏳ |
+| B2 | `usePolling` hook duplicates `setInterval` calls if mounted twice | low | — | ⏳ |
+| B3 | `marketing_logs` period_key for winback can double-fire at month boundary | low | — | 🟡 investigating |
+| B4 | `frontend/src/hooks/` directory does not exist yet (rule §11) | low | — | ⏳ |
+| B5 | No `migrations/notes.md` exists (rule §8) | low | — | ⏳ |
+| B6 | `RULES.md` says "no `console.log`" but a few `console.error` calls remain in error boundaries | low | — | ⏳ |
+
+---
+
+## 8. API Inventory (current state)
+
+> All endpoints below are LIVE in the codebase. Test status: ✅ covered by
+> `tests/lifecycle_test.py` or `tests/phase2_test.py` · 🟡 partial · ⏳ no test yet.
+
+### 8.1 Auth — `/api/auth`
+| Method | Path | Access | Test |
+|--------|------|--------|------|
+| POST | /register | public | ✅ |
+| POST | /login | public | ✅ |
+| POST | /otp/send | public | ✅ |
+| POST | /otp/verify | public | ✅ |
+| GET | /me | JWT | ✅ |
+
+### 8.2 Menu — `/api/menu`
+| Method | Path | Access | Test |
+|--------|------|--------|------|
+| GET | /categories | public | ✅ |
+| GET | /items | public | ✅ |
+| GET | /items/:id | public | ✅ |
+
+### 8.3 Orders — `/api/orders`
+| Method | Path | Access | Test |
+|--------|------|--------|------|
+| POST | / | public | ✅ |
+| GET | /my | customer JWT | ✅ |
+| GET | /:id/track | JWT or phone | ✅ |
+| POST | /:id/otp/resend | public | 🟡 |
+
+### 8.4 Offers — `/api/offers`
+| Method | Path | Access | Test |
+|--------|------|--------|------|
+| GET | / | public | ✅ |
+
+### 8.5 Notifications — `/api/notifications`
+| Method | Path | Access | Test |
+|--------|------|--------|------|
+| GET | / | JWT | 🟡 |
+| POST | /read | JWT | 🟡 |
+
+### 8.6 Admin — `/api/admin`
+| Method | Path | Access | Test |
+|--------|------|--------|------|
+| GET | /dashboard | manager | ✅ |
+| GET | /dashboard/top-items | manager | ✅ |
+| GET | /orders | manager | ✅ |
+| PATCH | /orders/:id/assign | manager | ✅ |
+| PATCH | /orders/:id/cancel | manager | ✅ |
+| GET/POST | /categories | manager | 🟡 |
+| POST/PUT/DELETE | /menu-items[/:id] | manager | ✅ |
+| GET | /staff | manager | ✅ |
+| POST | /staff | manager | ✅ |
+| PATCH | /staff/:id | manager | ✅ |
+| GET | /offers | manager | ✅ |
+| POST/PUT/DELETE | /offers[/:id] | manager | ✅ |
+| GET | /analytics | manager | 🟡 |
+| POST | /broadcast | manager | 🟡 |
+| GET | /whatsapp/status | manager | 🟡 |
+| GET | /outbox | manager | 🟡 |
+
+
+### 8.7 Kitchen — `/api/kitchen`
+| Method | Path | Access | Test |
+|--------|------|--------|------|
+| GET | /orders | cook / manager | ✅ |
+| PATCH | /orders/:id/status | cook / manager | ✅ |
+
+### 8.8 Delivery — `/api/delivery`
+| Method | Path | Access | Test |
+|--------|------|--------|------|
+| GET | /orders | delivery / manager | ✅ |
+| PATCH | /orders/:id/status | delivery / manager | ✅ |
+| PATCH | /orders/:id/deliver | delivery / manager | ✅ |
+
+### 8.9 Health — `/api`
+| Method | Path | Access | Test |
+|--------|------|--------|------|
+| GET | /health | public | 🟡 |
+
+---
+
+## 9. Definition of Done (per phase)
+
+A phase is "done" only when **all** of the following are true:
+
+1. Every checkbox in that phase's section is ✅.
+2. `pytest backend/tests/` is green locally.
+3. `docker compose up --build` boots all 3 services healthy.
+4. `README.md` quick-start works on a fresh clone (`./run_local.sh`).
+5. `PHASE.md` (this file) is updated with the date and any newly-discovered gaps.
+6. A short summary is posted in the team chat / changelog.
+
+---
+
+## 10. Suggested Next-Sprint Order
+
+If you have one week of focused time, work in this order to maximize value:
+
+1. **P4.1** GitHub Actions CI (3 h) — unblocks everything else.
+2. **P4.4** `pre-commit` (1 h) — keeps CI green.
+3. **P4.2 / P4.3** Pytest refactor + coverage gate (1 day).
+4. **B1–B6** open bugs (½ day).
+5. **P3.6 / P3.7** finish marketing opt-in (½ day).
+6. **P5.2** Razorpay UPI (2 days) — the highest-impact v3.0 feature for a real shop.
+7. **P5.6** Hindi / English toggle (1 day) — Desi UX win.
+
+After that, the project is production-hardened and the remaining v3.0 work can be
+prioritized by user demand.
+
+---
+
+## 11. Quick Stats (as of 2026-08-28)
+
+| Metric | Value |
+|--------|-------|
+| Backend Python files | 31 |
+| Backend lines of code (excl. venv) | ~3 200 |
+| Frontend JSX files | 25 |
+| Frontend lines of code (excl. node_modules) | ~3 400 |
+| DB models | 10 |
+| API endpoints | 50+ |
+| Background processes | 2 (worker, scheduler) |
+| Docker services | 3 (db, backend, frontend) |
+| Test files | 2 (`lifecycle_test.py`, `phase2_test.py`) |
+| Documentation files | 6 (README, PLAN, PRD, ARCHITECTURE, RULES, PHASE) + 3 planned (DESIGN, MEMORY) |
+

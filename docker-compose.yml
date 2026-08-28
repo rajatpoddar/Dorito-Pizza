@@ -1,0 +1,59 @@
+services:
+  # ---------------- PostgreSQL ----------------
+  db:
+    image: postgres:16-alpine
+    container_name: dorito-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dorito}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dorito}
+      POSTGRES_DB: ${POSTGRES_DB:-dorito}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"   # exposed for local dev tooling; remove in production
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dorito} -d ${POSTGRES_DB:-dorito}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ---------------- Flask API ----------------
+  backend:
+    build: ./backend
+    container_name: dorito-backend
+    environment:
+      FLASK_CONFIG: docker
+      SECRET_KEY: ${SECRET_KEY:-dorito-flask-secret-key-change-in-production}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dorito-jwt-secret-key-change-in-production}
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-dorito}:${POSTGRES_PASSWORD:-dorito}@db:5432/${POSTGRES_DB:-dorito}
+    depends_on:
+      db:
+        condition: service_healthy
+    # seed.py creates any missing tables (db.create_all) + seeds menu/users, then serve.
+    # (Flask-Migrate stays installed for future schema migrations.)
+    command: >
+      sh -c "python seed.py &&
+             gunicorn -w 4 -b 0.0.0.0:5000 --access-logfile - wsgi:application"
+    ports:
+      - "5000:5000"   # direct API access during development
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------- React frontend (nginx) ----------------
+  frontend:
+    build: ./frontend
+    container_name: dorito-frontend
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "80:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:

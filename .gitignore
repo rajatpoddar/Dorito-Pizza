@@ -1,0 +1,26 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+instance/
+.migrations/
+
+# env & secrets
+.env
+*.env
+!.env.example
+
+# node / vite
+node_modules/
+dist/
+.vite/
+
+# db & tooling
+*.db
+*.sqlite3
+.logs/
+.screenshots/
+.DS_Store
+*.log
