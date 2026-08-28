@@ -139,7 +139,14 @@ fi
 
 # ── Build ───────────────────────────────────────────────────────
 step "Building Docker images"
-docker compose build 2>&1 | tail -5
+docker compose build --progress=plain 2>&1 | while IFS= read -r line; do
+    # Show build stage headers and progress
+    if echo "$line" | grep -qE "^#\[linux"; then
+        printf "    ${DIM}%s${NC}\n" "$line"
+    elif echo "$line" | grep -qE "=>|FINISHED|CACHED|ERROR"; then
+        printf "    ${DIM}%s${NC}\n" "$line"
+    fi
+done
 info "Build complete"
 
 # ── Launch ──────────────────────────────────────────────────────
