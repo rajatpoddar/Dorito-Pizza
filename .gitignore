@@ -24,3 +24,9 @@ dist/
 .screenshots/
 .DS_Store
 *.log
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.pytest_cache/
+.mypy_cache/

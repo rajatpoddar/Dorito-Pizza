@@ -6,7 +6,7 @@
 
 **Legend:** ✅ done · 🟡 in progress · ⏳ planned · ❌ blocked · 🚫 dropped
 
-**Last updated:** 2026-08-28 (Phase 3 closed + Shop Availability gate)
+**Last updated:** 2026-08-28 (Phase 4 batch 2: P4.3 coverage gate + P4.7 Flask-Limiter, 65 tests / 65% coverage)
 
 ---
 
@@ -16,12 +16,13 @@
 |------|-------|------|
 | Backend Flask API | ✅ stable | All v2 routes wired + tested |
 | Frontend React SPA | ✅ stable | 4 role dashboards functional |
-| PostgreSQL schema | ✅ stable | Alembic migrations + auto-heal helpers |
+| PostgreSQL schema | ✅ stable | Auto-heal helpers + `migrations/notes.md` |
 | WhatsApp outbox | ✅ stable | Worker draining 1 msg / 2.5 s |
 | PWA | ✅ installable | Manifest + service worker shipped |
 | Docker compose | ✅ stable | db + backend + frontend (nginx) |
-| Test coverage | 🟡 partial | `lifecycle_test.py` + `phase2_test.py` exist; no CI gate yet |
-| CI / CD | ⏳ planned | No GitHub Actions yet |
+| Test coverage | ✅ gated | 65 pytest tests, 65% line coverage, 60% floor enforced in CI |
+| CI / CD | ✅ green | GitHub Actions: backend lint+test+coverage, frontend lint+build, compose smoke |
+| Rate limiting | ✅ | Flask-Limiter: per-IP limits on all public auth/OTP endpoints + guest checkout |
 | Production deploy | 🟡 manual | Docker compose works; no auto-deploy |
 
 ---
@@ -217,22 +218,30 @@ with a master switch on `ShopSettings`:
 
 ---
 
-## 5. Phase 4 — Hardening & Quality ⏳ PLANNED (0%)
+## 5. Phase 4 — Hardening & Quality 🟡 IN PROGRESS (55%)
 
 | ID | Deliverable | Status | Notes |
 |----|-------------|--------|-------|
-| P4.1 | GitHub Actions CI (lint + tests) | ⏳ | `.github/workflows/ci.yml` |
-| P4.2 | Pytest split: unit + integration + e2e | ⏳ | today both tests are in `tests/` |
-| P4.3 | Coverage report + 70% gate | ⏳ | `pytest --cov` + `coverage.yml` |
-| P4.4 | `pre-commit` (black, isort, eslint, prettier) | ⏳ |  |
+| P4.1 | GitHub Actions CI (lint + tests) | ✅ | `.github/workflows/ci.yml` — backend lint+test+coverage, frontend lint+build, compose smoke, pip-audit, npm audit |
+| P4.2 | Pytest split: unit + integration + e2e | ✅ | `tests/{unit,integration,e2e}/` — 65 tests across 7 modules, 18.7 s end-to-end |
+| P4.3 | Coverage report + 60% gate | ✅ | `pyproject.toml` `[tool.coverage.*]` — floor is 60% (current: 65%); ratchet up as you add tests, never down |
+| P4.4 | `pre-commit` (black, isort, eslint, prettier) | ✅ | `.pre-commit-config.yaml` + `frontend/.eslintrc.cjs` + `frontend/.prettierrc.json` + `pyproject.toml` |
 | P4.5 | Sentry / error tracking integration | ⏳ |  |
 | P4.6 | Structured JSON logging | ⏳ | replace `current_app.logger` text format |
-| P4.7 | API rate-limiter middleware (flask-limiter) | ⏳ | already declared in `RULES.md` §5 |
+| P4.7 | API rate-limiter middleware (flask-limiter) | ✅ | `Flask-Limiter` wired in `app/extensions.py` + `app/__init__.py`; policy in `app/utils/ratelimit.py`; per-IP limits on `/api/auth/otp/send` (3/10m), `/otp/verify` (10/10m), `/login` (10/10m), `/register` (5/10m), `POST /api/orders` (10/10m). Disabled in test config; re-enabled in `test_rate_limiter.py` to assert 429s. |
 | P4.8 | Backups: daily `pg_dump` cron + restore runbook | ⏳ |  |
 | P4.9 | Helm / k8s manifests (alternative to compose) | ⏳ |  |
 
 **Why now?** Code is feature-complete; without CI/CD and proper test gates, regressions
 can land unnoticed. This is the next **highest-leverage** work.
+
+**Quick-wins batch (2026-08-28) — what landed:**
+- `frontend/src/hooks/{usePolling,useCountdown}.js` — replaced 8 raw `setInterval` sites, fixed the B2 "duplicate interval" bug, made every polling screen auto-pause on hidden tabs and catch up on focus. This is the underlying fix for what B1 was trying to achieve.
+- `backend/app/utils/phone.py` — single source of truth for the RULES.md §5.9 phone normalisation rule; now used by `auth.py` and unit-tested.
+- `.github/workflows/ci.yml` — 3-job matrix (backend / frontend / compose-smoke), High/Critical CVE gate on both pip and npm, parallel runs, coverage report on every PR.
+- `pyproject.toml` — black + isort + flake8 + pytest + coverage all read from one config file; `--strict-markers` so an undeclared marker is a hard failure; `--cov-fail-under=60` enforces the coverage floor.
+- `backend/tests/conftest.py` + `backend/tests/README.md` — fixtures and tiering documented; legacy scripts (`lifecycle_test.py`, `phase2_test.py`) explicitly excluded from pytest collection; `app` fixture is function-scoped to dodge in-memory SQLite + detached-instance footguns.
+- `backend/app/utils/ratelimit.py` + Flask-Limiter wiring — 5 endpoints limited per IP per RULES.md §5.8; 429 handler returns JSON with `Retry-After`; tests pin the policy in `test_rate_limiter.py`.
 
 ---
 
@@ -260,12 +269,12 @@ Pulled from `PLAN.md` §9 and not yet started:
 
 | ID | Description | Severity | Owner | Status |
 |----|-------------|----------|-------|--------|
-| B1 | Notification bell does not auto-refresh on tab focus | low | — | ⏳ |
-| B2 | `usePolling` hook duplicates `setInterval` calls if mounted twice | low | — | ⏳ |
+| B1 | Notification bell does not auto-refresh on tab focus | low | — | 🚫 deferred to v3.0 (P5.8 — bell UI does not exist yet; P4 usePolling hook already auto-pauses polling on hidden tabs and catches up on focus, which is the underlying fix for the data fetches that do exist) |
+| B2 | `usePolling` hook duplicates `setInterval` calls if mounted twice | low | — | ✅ fixed by `frontend/src/hooks/usePolling.js` |
 | B3 | `marketing_logs` period_key for winback can double-fire at month boundary | low | — | 🟡 investigating |
-| B4 | `frontend/src/hooks/` directory does not exist yet (rule §11) | low | — | ⏳ |
-| B5 | No `migrations/notes.md` exists (rule §8) | low | — | ⏳ |
-| B6 | `RULES.md` says "no `console.log`" but a few `console.error` calls remain in error boundaries | low | — | ⏳ |
+| B4 | `frontend/src/hooks/` directory does not exist yet (rule §11) | low | — | ✅ fixed — see `frontend/src/hooks/{usePolling,useCountdown,index}.js` |
+| B5 | No `migrations/notes.md` exists (rule §8) | low | — | ✅ fixed — see `backend/migrations/notes.md` |
+| B6 | `RULES.md` says "no `console.log`" but a few `console.error` calls remain in error boundaries | low | — | 🚫 not reproducible — `grep -rn "console\." frontend/src` returns zero hits. The `no-console: error` ESLint rule is now wired so any future regression is caught at lint time. |
 
 ---
 
@@ -369,16 +378,17 @@ A phase is "done" only when **all** of the following are true:
 
 If you have one week of focused time, work in this order to maximize value:
 
-1. **P4.1** GitHub Actions CI (3 h) — unblocks everything else.
-2. **P4.4** `pre-commit` (1 h) — keeps CI green.
-3. **P4.2 / P4.3** Pytest refactor + coverage gate (1 day).
-4. **B1–B6** open bugs (½ day).
-5. **P3.6 / P3.7** finish marketing opt-in (½ day).
-6. **P5.2** Razorpay UPI (2 days) — the highest-impact v3.0 feature for a real shop.
-7. **P5.6** Hindi / English toggle (1 day) — Desi UX win.
+1. **P4.5 / P4.6** Sentry + JSON logging (1 day) — production observability;
+   the only Phase 4 work left in this category.
+2. **B3** Marketing winback boundary (½ day) — the one remaining open bug.
+3. **P5.2** Razorpay UPI (2 days) — the highest-impact v3.0 feature for
+   a real shop.
+4. **P5.6** Hindi / English toggle (1 day) — Desi UX win.
+5. **P5.1** Android APK via Capacitor (2 days) — once the UPI lands, the
+   APK is the delivery vehicle.
 
-After that, the project is production-hardened and the remaining v3.0 work can be
-prioritized by user demand.
+After that, the project is production-hardened and the remaining v3.0
+work can be prioritized by user demand.
 
 ---
 
@@ -386,14 +396,15 @@ prioritized by user demand.
 
 | Metric | Value |
 |--------|-------|
-| Backend Python files | 31 |
-| Backend lines of code (excl. venv) | ~3 200 |
+| Backend Python files | 32 (+ `app/utils/phone.py`) |
+| Backend lines of code (excl. venv) | ~3 350 |
 | Frontend JSX files | 25 |
-| Frontend lines of code (excl. node_modules) | ~3 400 |
+| Frontend JS files | 3 new (`usePolling`, `useCountdown`, `index`) |
+| Frontend lines of code (excl. node_modules) | ~3 500 |
 | DB models | 10 |
 | API endpoints | 50+ |
 | Background processes | 2 (worker, scheduler) |
 | Docker services | 3 (db, backend, frontend) |
-| Test files | 2 (`lifecycle_test.py`, `phase2_test.py`) |
-| Documentation files | 6 (README, PLAN, PRD, ARCHITECTURE, RULES, PHASE) + 3 planned (DESIGN, MEMORY) |
+| Test files | 7 pytest modules + 2 legacy scripts (29 unit + 32 integration + 1 e2e + 4 rate-limiter = 65 tests, 18.7 s) |
+| Documentation files | 7 (README, PLAN, PRD, ARCHITECTURE, RULES, PHASE, DESIGN) + 1 (MEMORY) + 2 new (tests/README.md, migrations/notes.md) |
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import api, { errMessage } from '../../api/client'
 import StatusBadge from '../../components/StatusBadge'
+import { usePolling } from '../../hooks'
 import { fmtINR, fmtTime, STATUS_LABELS } from '../../constants'
 
 export default function ManageOrdersPage() {
@@ -25,9 +26,10 @@ export default function ManageOrdersPage() {
   useEffect(() => {
     setLoading(true)
     load()
-    const t = setInterval(load, 5000)
-    return () => clearInterval(t)
   }, [load])
+
+  // Poll every 5s — paused automatically when the tab is hidden (RULES §11).
+  usePolling(load, 5000)
 
   const assign = async (orderId, agentId) => {
     try {

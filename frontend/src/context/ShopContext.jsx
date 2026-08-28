@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import api from '../api/client'
+import { usePolling } from '../hooks'
 
 /**
  * ShopContext — exposes the public shop status (is_shop_open, closed_message)
@@ -42,9 +43,10 @@ export function ShopProvider({ children }) {
 
   useEffect(() => {
     refresh()
-    const t = setInterval(refresh, POLL_MS)
-    return () => clearInterval(t)
   }, [refresh])
+
+  // Polls every 60s, auto-pauses when the tab is hidden.
+  usePolling(refresh, POLL_MS)
 
   return (
     <ShopContext.Provider

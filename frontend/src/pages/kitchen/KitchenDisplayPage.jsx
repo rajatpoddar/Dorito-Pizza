@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import api, { errMessage } from '../../api/client'
+import { usePolling } from '../../hooks'
 import { fmtINR, fmtTime } from '../../constants'
 
 const POLL_MS = 4000
@@ -26,9 +27,9 @@ export default function KitchenDisplayPage() {
 
   useEffect(() => {
     load()
-    const t = setInterval(load, POLL_MS)
-    return () => clearInterval(t)
   }, [load])
+
+  usePolling(load, POLL_MS)
 
   const advance = async (order, next) => {
     setBusyId(order.id)

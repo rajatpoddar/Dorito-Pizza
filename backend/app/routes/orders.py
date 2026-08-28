@@ -4,10 +4,11 @@ import secrets
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models import MenuItem, Offer, Order, OrderItem, ShopSettings, User
 from app.services import notify as notify_svc
 from app.services import whatsapp
+from app.utils.ratelimit import ORDERS_GUEST_CHECKOUT, limit as rl_limit
 
 orders_bp = Blueprint("orders", __name__, url_prefix="/api/orders")
 
@@ -25,6 +26,7 @@ def _optional_user():
 
 
 @orders_bp.post("")
+@rl_limit(limiter, ORDERS_GUEST_CHECKOUT)
 def create_order():
     """Checkout. Guest ok; totals & discount always computed server-side.
 

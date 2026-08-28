@@ -7,7 +7,7 @@
 > ⚠️ This file is **opinionated and informal**. For the formal spec, see `PRD.md`,
 > `ARCHITECTURE.md`, `RULES.md`, `PHASE.md`, `DESIGN.md`, `PLAN.md`.
 
-**Last refreshed:** 2026-08-28 (Phase 3 + Shop gate + Hero PNGs + SW cache + Hero image priority fix)
+**Last refreshed:** 2026-08-28 (Phase 4 batch 2: P4.3 coverage gate (60% floor, 65% actual) + P4.7 Flask-Limiter rate limiting on 5 public endpoints)
 
 ---
 
@@ -142,6 +142,23 @@ Any new env var MUST be added to `backend/.env.example` **and** documented in
 - **Polling storm risk:** if the user opens 5 tabs of `/track/:id`, the backend
   serves 5 × (1 / 5 s) = 1 req/s. Acceptable. Do NOT add per-component timers
   that aren't throttled.
+- **All frontend polling goes through `usePolling`** (in
+  `frontend/src/hooks/`). It auto-pauses when the tab is hidden and
+  fires immediately on focus, so backgrounded tabs don't burn API
+  calls. Raw `setInterval` in components is a bug — RULES.md §11. The
+  one exception is `main.jsx`'s service-worker update tick, which is
+  an app-level loop outside React.
+- **Rate limiting is in-memory by default** (Flask-Limiter, P4.7).
+  The bucket lives in the gunicorn worker process, so a multi-worker
+  prod deploy needs `RATELIMIT_STORAGE_URI=redis://...` to share
+  state — otherwise each worker has its own count and the effective
+  limit is N × the configured value. The 5 protected endpoints and
+  their per-IP quotas live in `app/utils/ratelimit.py`.
+- **Coverage gate floor is 60%** as of 2026-08-28. The number lives
+  in `pyproject.toml` under `[tool.coverage.report] fail_under`. Bump
+  it up in lockstep with new tests, never down. The CI step is
+  `pytest --cov=app --cov-report=xml --cov-branch --cov-fail-under=60`
+  (the `--cov-fail-under` is read from pyproject, not the CLI).
 - **`marketing_logs` dedup** uses `unique(phone, kind, period_key)`. A bug at
   month boundary (B3 in `PHASE.md`) can double-fire the winback — keep an eye.
 - **Worker process** (`python -m app.worker`) must run **separately** from
@@ -187,10 +204,22 @@ Any new env var MUST be added to `backend/.env.example` **and** documented in
 ```bash
 cd backend
 source .venv/bin/activate
-pytest tests/ -v
+FLASK_CONFIG=test pytest tests/ -v        # full suite (29 unit + 32 integration + 1 e2e + 4 rate-limit, ~18.7 s)
+FLASK_CONFIG=test pytest tests/ -m unit   # fast feedback only
+FLASK_CONFIG=test pytest tests/ --cov=app # with coverage report
 ```
-- `tests/lifecycle_test.py` exercises a full order happy-path.
-- `tests/phase2_test.py` covers OTP, offers, notifications, marketing.
+- Tests are split into `tests/unit/`, `tests/integration/`, `tests/e2e/`
+  per RULES.md §7's pyramid. See `tests/README.md`.
+- `tests/lifecycle_test.py` and `tests/phase2_test.py` are legacy
+  scripts that the new tiers replaced — still runnable as
+  `python tests/lifecycle_test.py` for backward compat, but excluded
+  from pytest collection.
+- Phone normalisation is tested in `tests/unit/test_phone_normalise.py`;
+  always edit `app/utils/phone.py` rather than re-introducing inline
+  copies in routes.
+- Rate-limiter tests live in `tests/integration/test_rate_limiter.py`
+  and build their own app with `RATELIMIT_ENABLED=True` so the rest
+  of the suite can hammer endpoints without bleeding into the bucket.
 
 ### 7.5 Reset the dev database
 ```bash

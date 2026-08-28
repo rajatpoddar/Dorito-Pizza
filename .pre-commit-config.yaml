@@ -1,0 +1,66 @@
+# Pre-commit hooks for the Dorito monorepo.
+# Install once:  pip install pre-commit && pre-commit install
+# Run on demand: pre-commit run --all-files
+#
+# Kept intentionally small: formatters + import sorters for the two stacks
+# we actually ship (Python backend, React/Vite frontend). Heavy gates
+# (pytest, eslint --max-warnings, npm audit) live in CI, not here — see
+# .github/workflows/ci.yml. Local pre-commit should be < 10 s on a warm
+# cache or developers will `git commit --no-verify` it into oblivion.
+repos:
+  # ----- Python (backend) -----
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        name: black (backend)
+        files: ^backend/.*\.py$
+        args: ["--line-length", "100"]
+        # Skip Alembic version files (third-party style) and migrations dir.
+        exclude: ^backend/migrations/
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort (backend)
+        files: ^backend/.*\.py$
+        args: ["--profile", "black", "--line-length", "100"]
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.0
+    hooks:
+      - id: flake8
+        name: flake8 (backend)
+        files: ^backend/.*\.py$
+        # Match black's line length; ignore E203/W503 (black-isort conflicts)
+        # and F401 in __init__.py re-exports.
+        args:
+          - "--max-line-length=100"
+          - "--extend-ignore=E203,W503"
+          - "--exclude=migrations,.venv,__pycache__"
+
+  # ----- Frontend (React + Vite) -----
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.3.3
+    hooks:
+      - id: prettier
+        name: prettier (frontend)
+        files: ^frontend/.*\.(js|jsx|css|json|md)$
+        # Use the local install so we don't have to re-declare version drift.
+        additional_dependencies:
+          - "prettier@3.3.3"
+        args: ["--check"]
+
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.10.0
+    hooks:
+      - id: eslint
+        name: eslint (frontend)
+        files: ^frontend/src/.*\.(js|jsx)$
+        # Resolve from the frontend workspace so we pick up its devDeps.
+        args: ["--config", "frontend/.eslintrc.cjs", "--max-warnings=0"]
+        additional_dependencies:
+          - "eslint@8.57.0"
+          - "eslint-plugin-react@7.35.0"
+          - "eslint-plugin-react-hooks@4.6.2"

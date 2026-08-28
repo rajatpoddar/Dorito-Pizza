@@ -69,6 +69,10 @@ class TestConfig(BaseConfig):
         "TEST_DATABASE_URL",
         "sqlite:///:memory:",
     )
+    # Disable rate limiting in tests so test_client calls don't bleed
+    # into the per-IP bucket across tests. Re-enable explicitly in
+    # the rate-limiter test file when we want to assert 429s.
+    RATELIMIT_ENABLED = False
 
 
 config_by_name = {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import api, { errMessage } from '../../api/client'
 import StatusBadge from '../../components/StatusBadge'
+import { usePolling } from '../../hooks'
 import { fmtINR, fmtTime } from '../../constants'
 
 const POLL_MS = 5000
@@ -22,9 +23,9 @@ export default function DeliveryPage() {
 
   useEffect(() => {
     load()
-    const t = setInterval(load, POLL_MS)
-    return () => clearInterval(t)
   }, [load])
+
+  usePolling(load, POLL_MS)
 
   const advance = async (order) => {
     setBusyId(order.id)

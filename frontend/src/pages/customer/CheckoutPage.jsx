@@ -4,6 +4,7 @@ import api, { errMessage } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import { useCart } from '../../context/CartContext'
 import { useShopStatus } from '../../context/ShopContext'
+import { useCountdown } from '../../hooks'
 import { SHOP, SHOP_ADDRESS, fmtINR, itemImage } from '../../constants'
 
 export default function CheckoutPage() {
@@ -36,7 +37,7 @@ export default function CheckoutPage() {
   const [otpCode, setOtpCode] = useState('')
   const [otpError, setOtpError] = useState('')
   const [otpBusy, setOtpBusy] = useState(false)
-  const [cooldown, setCooldown] = useState(0)
+  const [cooldown, setCooldown] = useCountdown(0)
   const [isNewUser, setIsNewUser] = useState(false)
   // dev-mode: when WhatsApp delivery is not configured, backend returns the
   // OTP in the response and we show it in a banner so the customer can still
@@ -94,18 +95,6 @@ export default function CheckoutPage() {
     ? 0
     : Number(settings.delivery_charge)
   const total = Math.max(0, cartSubtotal - discount + deliveryCharge)
-
-  // cooldown timer
-  useEffect(() => {
-    if (cooldown <= 0) return
-    const t = setInterval(() => {
-      setCooldown((c) => {
-        if (c <= 1) clearInterval(t)
-        return c - 1
-      })
-    }, 1000)
-    return () => clearInterval(t)
-  }, [cooldown])
 
   if (items.length === 0) {
     return (

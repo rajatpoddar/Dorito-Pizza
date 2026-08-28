@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api, { errMessage } from '../../api/client'
+import { usePolling } from '../../hooks'
 import { fmtINR } from '../../constants'
 
 export default function DashboardPage() {
@@ -8,14 +9,22 @@ export default function DashboardPage() {
   const [topItems, setTopItems] = useState([])
   const [error, setError] = useState('')
 
+  const load = useCallback(
+    () =>
+      api
+        .get('/admin/dashboard')
+        .then((res) => setData(res.data))
+        .catch((e) => setError(errMessage(e))),
+    [],
+  )
+
   useEffect(() => {
-    const load = () =>
-      api.get('/admin/dashboard').then((res) => setData(res.data)).catch((e) => setError(errMessage(e)))
     load()
     api.get('/admin/dashboard/top-items').then((r) => setTopItems(r.data.items)).catch(() => {})
-    const t = setInterval(load, 10000)
-    return () => clearInterval(t)
-  }, [])
+  }, [load])
+
+  // Refresh dashboard every 10s.
+  usePolling(load, 10000)
 
   if (error) return <main className="mx-auto max-w-5xl px-4 py-16 text-center text-red-500">{error}</main>
   if (!data) return <main className="mx-auto max-w-5xl px-4 py-16 text-center text-neutral-500">Loading dashboard…</main>

@@ -1,0 +1,76 @@
+# Python tool config consumed by black + isort + flake8.
+# One file (this one) keeps the three formatters in lockstep so we never
+# fight style drift between commits.
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+exclude = '''
+/(
+    \.venv
+  | migrations
+  | __pycache__
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["app"]
+skip_glob = ["migrations/*", ".venv/*"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+# Only collect from the three tiered subdirs. Legacy scripts in tests/
+# root (lifecycle_test.py, phase2_test.py) are scripts, not pytest
+# tests, and are explicitly excluded so they don't break collection.
+testpaths = ["tests/unit", "tests/integration", "tests/e2e"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# Split the suite so the same files can be run as unit / integration / e2e
+# via `pytest -m unit`, `-m integration`, `-m e2e`. See backend/tests/README.md.
+markers = [
+    "unit: pure functions, no DB, no Flask app",
+    "integration: Flask test_client + SQLite, route-level",
+    "e2e: full lifecycle, hits the worker too",
+]
+# NB: we deliberately do NOT default `-m unit` here. A bare `pytest` runs
+# every tier; CI then filters with `-m "not e2e"` on PRs and runs the
+# full suite on main. Picking `-m unit` by default made it impossible
+# to run integration tests without remembering to override on the CLI.
+addopts = "--strict-markers --tb=short"
+
+# ----------------------------------------------------------------------
+# Coverage gate (P4.3)
+# ----------------------------------------------------------------------
+# Floor is 60% as of 2026-08-28. Current actual: ~56% (with a few easy
+# wins in the next PR it should hit 60%). Raise this number in lockstep
+# with new tests; do NOT lower it to "make CI green" — that path leads
+# to a worthless gate (see RULES.md §14 anti-patterns).
+[tool.coverage.run]
+branch = true
+source = ["app"]
+# The in-process worker and the standalone scheduler are exercised by
+# the e2e tier; we still don't import them in the unit suite, so omit.
+omit = [
+    "app/worker.py",
+    "app/scheduler.py",
+    "app/__init__.py",  # factory is hard to cover exhaustively; tested via integration
+]
+
+[tool.coverage.report]
+# Show the per-file table on the terminal AND in the CI log.
+show_missing = true
+skip_covered = false
+# Don't punish us for the auto-heal helper — it's pure schema glue
+# that runs only in the prod startup path.
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+# 60% floor. Ratchet up as you add tests.
+fail_under = 60

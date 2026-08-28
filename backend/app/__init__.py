@@ -3,10 +3,20 @@ import logging
 import os
 import threading
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 from config import get_config
-from app.extensions import cors, db, jwt, migrate
+from app.extensions import cors, db, jwt, limiter, migrate
+
+
+def _rate_limit_key():
+    """Key function for Flask-Limiter. Per RULES.md §5.8: rate limit
+    public auth/OTP endpoints by client IP. `request.remote_addr` is
+    the direct connection IP; in production behind nginx/Cloudflare
+    we trust `X-Forwarded-For` (set `RATELIMIT_TRUSTED_HOSTS=1` in
+    the env if behind a reverse proxy you control).
+    """
+    return request.remote_addr or "unknown"
 
 
 def create_app(config_object=None):
@@ -34,6 +44,19 @@ def create_app(config_object=None):
     migrate.init_app(app, db)
     jwt.init_app(app)
     cors.init_app(app, resources={r"/api/*": {"origins": "*"}})
+    # Rate limiter (P4.7) — storage is in-memory; for a multi-worker
+    # production deploy swap to Redis (set RATELIMIT_STORAGE_URI=redis://...).
+    limiter.init_app(app)
+    limiter._key_func = _rate_limit_key  # noqa: SLF001 — Limiter has no public setter
+
+    # --- 429 handler — return JSON, not HTML ---
+    @app.errorhandler(429)
+    def _rate_limited(err):
+        # flask-limiter attaches Retry-After automatically; preserve it.
+        retry = err.description if hasattr(err, "description") else None
+        resp = jsonify(error="Too many requests. Please slow down.", retry_after=retry)
+        resp.status_code = 429
+        return resp
 
     # --- import models so Flask-Migrate can see them ---
     from app import models  # noqa: F401

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { errMessage } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
+import { useCountdown } from '../../hooks'
 import { HOME_BY_ROLE } from '../../constants'
 
 export default function LoginPage() {
@@ -17,7 +18,7 @@ export default function LoginPage() {
   const [form, setForm] = useState({ phone: '', password: '', name: '', otp: '' })
   const [isNew, setIsNew] = useState(false)
   const [devOtp, setDevOtp] = useState(null)
-  const [cooldown, setCooldown] = useState(0)
+  const [cooldown, setCooldown] = useCountdown(0)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -26,10 +27,6 @@ export default function LoginPage() {
 
   const startCooldown = () => {
     setCooldown(90)
-    const t = setInterval(() => setCooldown((c) => {
-      if (c <= 1) clearInterval(t)
-      return c - 1
-    }), 1000)
   }
 
   const handleSendOtp = async (e) => {

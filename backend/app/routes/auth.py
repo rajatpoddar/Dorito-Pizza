@@ -5,20 +5,25 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import create_access_token, jwt_required
 
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models import Order, OtpCode, User
 from app.services import whatsapp
 from app.utils.decorators import db_get_current_user
+from app.utils.phone import is_valid_indian_mobile, normalise_to_10
+from app.utils.ratelimit import (
+    AUTH_LOGIN,
+    AUTH_OTP_SEND,
+    AUTH_OTP_VERIFY,
+    AUTH_REGISTER,
+    limit as rl_limit,
+)
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 
-def _normalise_phone(raw: str) -> str:
-    """Keep digits only, strip +91 country code if present."""
-    digits = "".join(ch for ch in (raw or "") if ch.isdigit())
-    if len(digits) > 10 and digits.startswith("91"):
-        digits = digits[-10:]
-    return digits
+# Backwards-compatible alias for any in-tree callers (the inline helper
+# was removed when we moved the rule to utils/phone.py).
+_normalise_phone = normalise_to_10
 
 
 def _aware(dt):
@@ -27,6 +32,7 @@ def _aware(dt):
 
 
 @auth_bp.post("/register")
+@rl_limit(limiter, AUTH_REGISTER)
 def register():
     """Customer self-signup (kept for compatibility; OTP login preferred)."""
     data = request.get_json(silent=True) or {}
@@ -36,7 +42,7 @@ def register():
 
     if not name or not phone or not password:
         return jsonify(error="name, phone and password are required"), 400
-    if len(phone) != 10:
+    if not is_valid_indian_mobile(phone):
         return jsonify(error="Enter a valid 10-digit Indian mobile number"), 400
     if len(password) < 6:
         return jsonify(error="Password must be at least 6 characters"), 400
@@ -53,6 +59,7 @@ def register():
 
 
 @auth_bp.post("/login")
+@rl_limit(limiter, AUTH_LOGIN)
 def login():
     """Password login (staff). Customers should use WhatsApp OTP."""
     data = request.get_json(silent=True) or {}
@@ -76,6 +83,7 @@ def login():
 
 # ----------------------------------------------------------------- OTP login
 @auth_bp.post("/otp/send")
+@rl_limit(limiter, AUTH_OTP_SEND)
 def otp_send():
     """Send a 6-digit login OTP on WhatsApp."""
     data = request.get_json(silent=True) or {}
@@ -143,6 +151,7 @@ def otp_send():
 
 
 @auth_bp.post("/otp/verify")
+@rl_limit(limiter, AUTH_OTP_VERIFY)
 def otp_verify():
     """Verify OTP → JWT. New numbers become customers; old guest orders get linked."""
     data = request.get_json(silent=True) or {}

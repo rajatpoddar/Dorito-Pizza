@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { fmtINR, HERO_FALLBACK_SLIDES, heroImageFor } from '../constants'
 import { useCart } from '../context/CartContext'
+import { usePolling } from '../hooks'
 
 /* Gradient backdrops per category — used when item is db-driven. */
 const CAT_GRADIENT = {
@@ -54,11 +55,11 @@ export default function HeroCarousel({ items = [], onAdd }) {
   const [paused, setPaused] = useState(false)
   const total = slides.length || 1
 
-  useEffect(() => {
-    if (paused || total < 2) return
-    const t = setInterval(() => setIdx((i) => (i + 1) % total), 4500)
-    return () => clearInterval(t)
-  }, [paused, total])
+  // Auto-advance every 4.5s; pauses on hover/touch (controlled by `paused`).
+  const advance = useCallback(() => {
+    setIdx((i) => (i + 1) % total)
+  }, [total])
+  usePolling(advance, 4500, { enabled: !paused && total > 1 })
 
   const touch = { x: null }
   const onTouchStart = (e) => { touch.x = e.touches[0].clientX; setPaused(true) }

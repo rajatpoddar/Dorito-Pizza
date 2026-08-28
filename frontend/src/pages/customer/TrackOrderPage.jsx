@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import api, { errMessage } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
+import { useCountdown, usePolling } from '../../hooks'
 import OrderStatusTracker from '../../components/OrderStatusTracker'
 import StatusBadge from '../../components/StatusBadge'
 import { fmtINR, fmtTime } from '../../constants'
@@ -131,24 +132,24 @@ function LiveTracking() {
   }
 
   // live polling
-  useEffect(() => {
+  const fetchOrder = useCallback(() => {
     if (!orderId) return
-    let timer
-    const fetchOrder = () =>
-      api
-        .get(`/orders/${orderId}/track`)
-        .then((res) => {
-          setOrder(res.data.order)
-          setError('')
-        })
-        .catch((e) => {
-          if (!order) setError(errMessage(e))
-        })
+    api
+      .get(`/orders/${orderId}/track`)
+      .then((res) => {
+        setOrder(res.data.order)
+        setError('')
+      })
+      .catch((e) => {
+        if (!order) setError(errMessage(e))
+      })
+  }, [orderId, order])
+
+  useEffect(() => {
     fetchOrder()
-    timer = setInterval(fetchOrder, POLL_MS)
-    return () => clearInterval(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId])
+  }, [fetchOrder])
+
+  usePolling(fetchOrder, POLL_MS, { enabled: Boolean(orderId) })
 
   if (error)
     return (
@@ -277,18 +278,8 @@ function GuestLookup() {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [cooldown, setCooldown] = useState(0)
+  const [cooldown, setCooldown] = useCountdown(0)
   const [devOtp, setDevOtp] = useState(null)
-
-  // countdown
-  useEffect(() => {
-    if (cooldown <= 0) return
-    const t = setInterval(() => setCooldown((c) => {
-      if (c <= 1) clearInterval(t)
-      return c - 1
-    }), 1000)
-    return () => clearInterval(t)
-  }, [cooldown])
 
   const requestOtp = async (e) => {
     e?.preventDefault()
