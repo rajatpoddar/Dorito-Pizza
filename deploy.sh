@@ -21,7 +21,8 @@ CYAN=$'\033[0;36m'
 MAGENTA=$'\033[0;35m'
 WHITE=$'\033[1;37m'
 BG_GREEN=$'\033[42m'
-BG_RED=$'\033[41m'NC=$'\033[0m'
+BG_RED=$'\033[41m'
+NC=$'\033[0m'
 
 banner() {
     printf "${MAGENTA}${BOLD}"
