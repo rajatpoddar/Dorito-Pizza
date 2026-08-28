@@ -9,22 +9,22 @@
 # ──────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# ── Theme (use printf for portability — echo -e fails on some shells) ──
-c() { printf "%b" "$1"; }
-BOLD='\033[1m'
-DIM='\033[2m'
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
-WHITE='\033[1;37m'
-BG_GREEN='\033[42m'
-BG_RED='\033[41m'
-NC='\033[0m'
+# ── Theme ───────────────────────────────────────────────────────
+# Use $'...' syntax so escape chars are baked in at assignment time.
+# This works on every shell (bash, dash, zsh) without echo -e.
+BOLD=$'\033[1m'
+DIM=$'\033[2m'
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+CYAN=$'\033[0;36m'
+MAGENTA=$'\033[0;35m'
+WHITE=$'\033[1;37m'
+BG_GREEN=$'\033[42m'
+BG_RED=$'\033[41m'NC=$'\033[0m'
 
 banner() {
-    c "${MAGENTA}${BOLD}"
+    printf "${MAGENTA}${BOLD}"
     printf "\n"
     printf "  ╔══════════════════════════════════════════════════════╗\n"
     printf "  ║                                                      ║\n"
@@ -33,7 +33,7 @@ banner() {
     printf "  ║       One-Command Deploy Script                      ║\n"
     printf "  ║                                                      ║\n"
     printf "  ╚══════════════════════════════════════════════════════╝\n"
-    c "${NC}"
+    printf "%s" "${NC}"
 }
 
 step()   { printf "\n  ${CYAN}${BOLD}▸ %s${NC}\n" "$1"; }
