@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fmtINR } from '../constants'
+import { fmtINR, HERO_FALLBACK_SLIDES, heroImageFor } from '../constants'
 import { useCart } from '../context/CartContext'
 
 /* Gradient backdrops per category — used when item is db-driven. */
@@ -14,27 +14,34 @@ const CAT_GRADIENT = {
 }
 const DEFAULT_GRADIENT = 'from-rose-600 via-red-500 to-amber-400'
 
-const TAGS = ['🔥 Best Seller', '🍔 New Arrival', '🎂 Freshly Baked', '🍝 Combo Deal']
+const TAGS = ['🔥 Best Seller', '⭐ Chef Special', '🌽 Sweet & Savory', '🌱 Crunchy Bite']
 
 
 /** Auto-playing hero carousel driven by db items (falls back to placeholder).
  *  Props:
  *    items  – array of menu items (with image_url) to use as slides
  *    onAdd  – callback(item) when the "Add" CTA on a slide is clicked
+ *
+ *  Image policy:
+ *    - 1st priority: item.image_url (DB-driven)
+ *    - 2nd priority: heroImageFor(name) → /assets/hero/<file>.png
+ *    - 3rd priority: HERO_FALLBACK_SLIDES (used when items=[])
+ *
+ *  Mobile: image is ALWAYS visible (previously `hidden sm:block`).
  */
 export default function HeroCarousel({ items = [], onAdd }) {
   const { count } = useCart()
   const slides = items.length > 0
     ? items.slice(0, 4).map((it, i) => ({
         id: it.id,
-        img: it.image_url,
+        img: heroImageFor(it),
         eyebrow: TAGS[i] || '✨ Featured',
         title: it.name,
         subtitle: it.description || `Just ${fmtINR(it.price)} · Order now`,
         bg: CAT_GRADIENT[it.category_name] || DEFAULT_GRADIENT,
         price: it.price,
       }))
-    : []
+    : HERO_FALLBACK_SLIDES
 
   const [idx, setIdx] = useState(0)
   const [paused, setPaused] = useState(false)
@@ -57,15 +64,7 @@ export default function HeroCarousel({ items = [], onAdd }) {
   }
 
   if (slides.length === 0) {
-    return (
-      <div className="flex h-44 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-amber-400 text-white sm:h-72 lg:h-[30rem]">
-        <div className="text-center">
-          <p className="text-4xl">🍕</p>
-          <p className="mt-2 font-display text-xl font-bold sm:text-2xl">Dorito Pizza & Bakery</p>
-          <p className="mt-1 text-xs sm:text-sm">Loading menu…</p>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
@@ -74,9 +73,9 @@ export default function HeroCarousel({ items = [], onAdd }) {
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      {/* slides — mobile h-52 (208px) / sm h-72 / lg 30rem */}
+      {/* slides — taller on desktop; always show image now */}
       <div
-        className="relative h-52 sm:h-72 lg:h-[30rem]"
+        className="relative h-56 sm:h-80 lg:h-[28rem]"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
@@ -91,47 +90,50 @@ export default function HeroCarousel({ items = [], onAdd }) {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(255,255,255,0.18),transparent_50%)]" />
             <div className="absolute -bottom-12 right-1/4 h-40 w-40 rounded-full bg-white/10 blur-3xl sm:-bottom-16 sm:h-56 sm:w-56" />
             <div className="absolute -bottom-16 left-1/3 h-56 w-56 rounded-full bg-brand-gold/20 blur-3xl" />
+
+            {/* transparent-PNG-friendly image:
+                - object-contain so nothing is cropped
+                - drop-shadow so transparent PNGs read against any gradient
+                - ALWAYS visible (mobile → desktop) */}
             {s.img && (
               <img
                 src={s.img}
                 alt={s.title}
                 loading={i === 0 ? 'eager' : 'lazy'}
-                className="absolute right-0 top-1/2 hidden h-[112%] w-auto -translate-y-1/2 object-contain drop-shadow-[0_25px_50px_rgba(0,0,0,0.45)] sm:block sm:w-1/2 lg:w-[55%]"
-                style={{
-                  maskImage: 'linear-gradient(to left, black 70%, transparent 100%)',
-                  WebkitMaskImage: 'linear-gradient(to left, black 70%, transparent 100%)',
-                }}
+                draggable="false"
+                className="absolute right-2 top-1/2 h-44 w-auto -translate-y-1/2 object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.35)] sm:right-4 sm:h-64 md:right-10 md:h-72 lg:right-14 lg:h-[22rem]"
                 onError={(e) => { e.currentTarget.style.display = 'none' }}
               />
             )}
-            <div className="relative z-10 flex h-full flex-col justify-center px-5 sm:px-10 lg:px-14">
+            <div className="relative z-10 flex h-full flex-col justify-center px-4 sm:px-8 md:px-12 lg:px-14"
+                 style={{ maxWidth: '62%' }}>
               <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-white/25 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white backdrop-blur-md ring-1 ring-white/30 sm:px-3 sm:py-1">
                 {s.eyebrow}
               </span>
-              <h1 className="mt-2 max-w-md font-display text-2xl font-black leading-[1.05] text-white drop-shadow-lg sm:mt-3 sm:text-4xl lg:text-6xl">
+              <h1 className="mt-2 max-w-md font-display text-xl font-black leading-[1.05] text-white drop-shadow-lg sm:mt-3 sm:text-3xl md:text-4xl lg:text-5xl">
                 {s.title}
               </h1>
-              <p className="mt-1.5 hidden max-w-md text-sm font-medium text-white/90 drop-shadow sm:mt-2 sm:block sm:text-base lg:text-lg">
+              <p className="mt-1 hidden max-w-md text-sm font-medium text-white/90 drop-shadow sm:mt-2 sm:block sm:text-base lg:text-lg">
                 {s.subtitle}
               </p>
               {s.price != null && (
-                <p className="mt-2 font-display text-xl font-extrabold text-white drop-shadow sm:mt-2 sm:text-3xl">
+                <p className="mt-2 font-display text-lg font-extrabold text-white drop-shadow sm:mt-2 sm:text-2xl md:text-3xl">
                   {fmtINR(s.price)}
                 </p>
               )}
               {/* Only 2 buttons: Add + View Cart */}
-              <div className="mt-4 flex flex-wrap gap-2 sm:mt-5">
+              <div className="mt-3 flex flex-wrap gap-2 sm:mt-5">
                 {onAdd && (
                   <button
-                    onClick={() => onAdd(items[i])}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-brand-gold px-3.5 py-2 text-xs font-bold text-brand-dark shadow-lg transition hover:scale-105 hover:shadow-xl sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm"
+                    onClick={() => onAdd(items[i] || s)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-brand-gold px-3 py-1.5 text-xs font-bold text-brand-dark shadow-lg transition hover:scale-105 hover:shadow-xl sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm"
                   >
                     + Add
                   </button>
                 )}
                 <Link
                   to="/cart"
-                  className="relative inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-bold text-brand-red shadow-lg transition hover:scale-105 hover:shadow-xl sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm"
+                  className="relative inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-brand-red shadow-lg transition hover:scale-105 hover:shadow-xl sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm"
                 >
                   <span>🛒 View Cart</span>
                   {count > 0 && (
@@ -169,9 +171,9 @@ export default function HeroCarousel({ items = [], onAdd }) {
         </div>
       )}
 
-      {/* Free delivery badge — only on sm+ to avoid overlap on mobile */}
-      <span className="absolute right-3 top-3 z-20 hidden items-center gap-1.5 rounded-full bg-brand-dark/90 px-3 py-1.5 text-[11px] font-bold text-brand-gold shadow-lg ring-1 ring-brand-gold/30 backdrop-blur sm:inline-flex">
-        <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-400" />
+      {/* Free delivery badge — always visible (top-right), sized to mobile */}
+      <span className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-brand-dark/90 px-2 py-1 text-[10px] font-bold text-brand-gold shadow-lg ring-1 ring-brand-gold/30 backdrop-blur sm:right-3 sm:top-3 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-[11px]">
+        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-green-400 sm:h-2 sm:w-2" />
         Free delivery over ₹500
       </span>
     </section>

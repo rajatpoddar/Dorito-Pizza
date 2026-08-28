@@ -19,6 +19,77 @@ export const CATEGORY_EMOJI = {
   'Pasta and Roll':  '🍝',
 }
 
+/** Hero slide images (transparent PNGs, served from /public/assets/hero/).
+ *  Used by HeroCarousel when the menu item has no image_url. The keys are
+ *  matched case-insensitively against MenuItem.name; values are public paths
+ *  that Vite copies as-is. To add more: drop the PNG in
+ *  frontend/public/assets/hero/ and add an entry here.
+ */
+export const HERO_IMAGES = {
+  'dorito special pizza':   '/assets/hero/special.png',
+  'special pizza':          '/assets/hero/special.png',
+  'veg pizza':              '/assets/hero/veg.png',
+  'veg sweet corn pizza':   '/assets/hero/sweetcorn.png',
+  'sweet corn pizza':       '/assets/hero/sweetcorn.png',
+  'baby corn pizza':        '/assets/hero/babycorn.png',
+}
+
+/** Default slides shown when the menu has no image_url and no name matches
+ *  HERO_IMAGES. These guarantee the hero always looks alive even on a
+ *  brand-new menu. Eyebrow / title / subtitle are slide copy. */
+export const HERO_FALLBACK_SLIDES = [
+  {
+    id: 'fallback-veg',
+    img: '/assets/hero/veg.png',
+    eyebrow: '🔥 Best Seller',
+    title: 'Veg Pizza',
+    subtitle: 'Classic veg delight, hand-tossed and baked to order.',
+    bg: 'from-rose-600 via-red-500 to-amber-400',
+    price: 120,
+  },
+  {
+    id: 'fallback-special',
+    img: '/assets/hero/special.png',
+    eyebrow: '⭐ Chef Special',
+    title: 'Dorito Special Pizza',
+    subtitle: "Our signature — extra cheese, secret sauce, customer's #1 pick.",
+    bg: 'from-amber-500 via-orange-500 to-red-500',
+    price: 180,
+  },
+  {
+    id: 'fallback-sweetcorn',
+    img: '/assets/hero/sweetcorn.png',
+    eyebrow: '🌽 Sweet & Savory',
+    title: 'Veg Sweet Corn Pizza',
+    subtitle: 'Juicy sweet corn on a mozzarella-loaded crust.',
+    bg: 'from-pink-500 via-rose-400 to-amber-300',
+    price: 130,
+  },
+  {
+    id: 'fallback-babycorn',
+    img: '/assets/hero/babycorn.png',
+    eyebrow: '🌱 Crunchy Bite',
+    title: 'Baby Corn Pizza',
+    subtitle: 'Crisp baby corn, bell peppers, herbs and cheese.',
+    bg: 'from-emerald-600 via-teal-500 to-amber-400',
+    price: 140,
+  },
+]
+
+/** Pick the best hero image for a given menu item (transparent PNG-friendly). */
+export function heroImageFor(item) {
+  if (!item) return HERO_FALLBACK_SLIDES[0].img
+  // 1. honour the DB-set image_url if present
+  if (item.image_url) return item.image_url
+  // 2. try a name match in HERO_IMAGES
+  const key = String(item.name || '').trim().toLowerCase()
+  if (HERO_IMAGES[key]) return HERO_IMAGES[key]
+  // 3. by category — best-effort visual identity
+  const cat = String(item.category_name || '').toLowerCase()
+  if (cat.includes('pizza')) return HERO_IMAGES['veg pizza']
+  return HERO_FALLBACK_SLIDES[0].img
+}
+
 export const STATUS_FLOW = [
   { key: 'pending', label: 'Order Placed', icon: '🧾' },
   { key: 'preparing', label: 'Preparing', icon: '👨‍🍳' },
