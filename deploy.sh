@@ -9,7 +9,8 @@
 # ──────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# ── Theme ───────────────────────────────────────────────────────
+# ── Theme (use printf for portability — echo -e fails on some shells) ──
+c() { printf "%b" "$1"; }
 BOLD='\033[1m'
 DIM='\033[2m'
 RED='\033[0;31m'
@@ -22,51 +23,26 @@ BG_GREEN='\033[42m'
 BG_RED='\033[41m'
 NC='\033[0m'
 
-# ── Helpers ─────────────────────────────────────────────────────
 banner() {
-    echo ""
-    echo -e "${MAGENTA}${BOLD}"
-    echo "  ╔══════════════════════════════════════════════════════╗"
-    echo "  ║                                                      ║"
-    echo "  ║       🍕  D O R I T O   P I Z Z A  🍕               ║"
-    echo "  ║       ─────────────────────────────                  ║"
-    echo "  ║       One-Command Deploy Script                      ║"
-    echo "  ║                                                      ║"
-    echo "  ╚══════════════════════════════════════════════════════╝"
-    echo -e "${NC}"
+    c "${MAGENTA}${BOLD}"
+    printf "\n"
+    printf "  ╔══════════════════════════════════════════════════════╗\n"
+    printf "  ║                                                      ║\n"
+    printf "  ║       🍕  D O R I T O   P I Z Z A  🍕               ║\n"
+    printf "  ║       ─────────────────────────────                  ║\n"
+    printf "  ║       One-Command Deploy Script                      ║\n"
+    printf "  ║                                                      ║\n"
+    printf "  ╚══════════════════════════════════════════════════════╝\n"
+    c "${NC}"
 }
 
-step() {
-    echo ""
-    echo -e "  ${CYAN}${BOLD}▸ $1${NC}"
-}
-
-info() {
-    echo -e "    ${GREEN}✔${NC} $1"
-}
-
-warn() {
-    echo -e "    ${YELLOW}⚠${NC} $1"
-}
-
-fail() {
-    echo -e "    ${RED}✘${NC} $1" >&2
-}
-
-die() {
-    echo ""
-    echo -e "  ${BG_RED}${WHITE}${BOLD} FATAL ${NC} ${RED}$1${NC}" >&2
-    echo ""
-    exit 1
-}
-
-label() {
-    printf "    ${DIM}%-22s${NC} %s\n" "$1" "$2"
-}
-
-separator() {
-    echo -e "  ${DIM}──────────────────────────────────────────────────────${NC}"
-}
+step()   { printf "\n  ${CYAN}${BOLD}▸ %s${NC}\n" "$1"; }
+info()   { printf "    ${GREEN}✔${NC} %s\n" "$1"; }
+warn()   { printf "    ${YELLOW}⚠${NC} %s\n" "$1"; }
+fail()   { printf "    ${RED}✘${NC} %s\n" "$1" >&2; }
+label()  { printf "    ${DIM}%-22s${NC} %s\n" "$1" "$2"; }
+sep()    { printf "  ${DIM}──────────────────────────────────────────────────────${NC}\n"; }
+die()    { printf "\n  ${BG_RED}${WHITE}${BOLD} FATAL ${NC} ${RED}%s${NC}\n\n" "$1" >&2; exit 1; }
 
 # ── Banner ──────────────────────────────────────────────────────
 banner
@@ -77,7 +53,7 @@ step "Pre-flight checks"
 missing=0
 for cmd in docker openssl curl git; do
     if command -v "$cmd" >/dev/null 2>&1; then
-        ver=$($cmd --version 2>/dev/null | head -1 | cut -d' ' -f1-3)
+        ver=$($cmd --version 2>/dev/null | head -1 | awk '{print $1,$2,$3}')
         label "$cmd" "${GREEN}found${NC} ${DIM}($ver)${NC}"
     else
         label "$cmd" "${RED}NOT FOUND${NC}"
@@ -96,6 +72,40 @@ fi
 [ "$missing" -eq 1 ] && die "Missing required tools. Install them and retry."
 info "All prerequisites satisfied"
 
+# ── Auto git pull ──────────────────────────────────────────────
+step "Pulling latest code"
+
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    LOCAL=$(git rev-parse HEAD 2>/dev/null || echo "none")
+    git fetch origin main --quiet 2>/dev/null || true
+    REMOTE=$(git rev-parse origin/main 2>/dev/null || echo "none")
+
+    if [ "$LOCAL" = "$REMOTE" ]; then
+        info "Already up-to-date ${DIM}($(git rev-parse --short HEAD))${NC}"
+    else
+        BEHIND=$(git rev-list HEAD..origin/main --count 2>/dev/null || echo "?")
+        info "Pulling ${BEHIND} new commit(s) …"
+        git pull origin main --quiet 2>/dev/null || die "git pull failed — check permissions"
+        NEW_SHA=$(git rev-parse --short HEAD)
+        info "Updated to ${GREEN}${NEW_SHA}${NC}"
+    fi
+else
+    warn "Not a git repo — skipping pull"
+fi
+
+# ── Stop existing containers ───────────────────────────────────
+step "Stopping existing containers"
+
+if docker compose ps --status running 2>/dev/null | grep -q "dorito-"; then
+    info "Found running Dorito containers — stopping …"
+    docker compose down --remove-orphans 2>/dev/null || true
+    # Wait a moment for ports to be released
+    sleep 2
+    info "Previous containers stopped"
+else
+    info "No existing containers running"
+fi
+
 # ── Port detection ──────────────────────────────────────────────
 step "Detecting free ports"
 
@@ -113,19 +123,14 @@ find_free_port() {
     die "All candidate ports occupied: ${candidates[*]}"
 }
 
-# If user set ports via env before running, respect them.
-# But if .env has a port that's actually in use (stale), override it.
 resolve_port() {
     local var_name=$1; shift
     local -a candidates=("$@")
     local current_val="${!var_name:-}"
 
-    # If env var is set AND the port is actually free, use it
     if [ -n "$current_val" ] && ! port_is_used "$current_val"; then
         echo "$current_val"; return 0
     fi
-
-    # Otherwise find a free one
     find_free_port "${candidates[@]}"
 }
 
@@ -170,7 +175,6 @@ ENVEOF
     label "Secrets" "${GREEN}generated${NC} ${DIM}(32-char keys)${NC}"
     label "DB pass" "${GREEN}random 24-char${NC}"
 else
-    # Update port values in existing .env
     info "Existing .env found — updating ports …"
     for var in BACKEND_PORT FRONTEND_PORT DB_PORT; do
         val="${!var}"
@@ -190,10 +194,9 @@ step "Building Docker images"
 echo -e "    ${DIM}This may take a few minutes on first run …${NC}"
 echo ""
 
-docker compose build --progress=plain 2>&1 | while IFS= read -r line; do
-    # Highlight key build stages
-    if echo "$line" | grep -qE "^(=> \[|DONE|ERROR)"; then
-        echo -e "    ${DIM}${line}${NC}"
+docker compose build 2>&1 | while IFS= read -r line; do
+    if echo "$line" | grep -qE "DONE|ERROR"; then
+        printf "    ${DIM}%s${NC}\n" "$line"
     fi
 done
 
@@ -205,7 +208,7 @@ step "Starting containers"
 docker compose up -d 2>&1 | while IFS= read -r line; do
     if echo "$line" | grep -qE "Created|Started|Recreated"; then
         container=$(echo "$line" | sed 's/.*Container \([^ ]*\).*/\1/')
-        echo -e "    ${GREEN}✔${NC} ${container}"
+        printf "    ${GREEN}✔${NC} %s\n" "$container"
     fi
 done
 
@@ -216,18 +219,16 @@ HEALTH_URL="http://localhost:${BACKEND_PORT}/api/health"
 dots=""
 for i in $(seq 1 60); do
     if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
-        echo -e "    ${GREEN}✔${NC} Backend healthy ${GREEN}(took ${i}*2s)${NC}"
+        printf "    ${GREEN}✔${NC} Backend healthy ${GREEN}(took %ds)${NC}\n" "$((i*2))"
         break
     fi
     if [ "$i" -eq 60 ]; then
-        echo ""
-        echo -e "    ${RED}✘ Backend did not respond in 120s${NC}"
-        echo -e "    ${DIM}Run: docker compose logs backend${NC}"
+        printf "\n    ${RED}✘ Backend did not respond in 120s${NC}\n"
+        printf "    ${DIM}Run: docker compose logs backend${NC}\n"
         die "Health check failed"
     fi
-    # Animated dots
     dots="${dots}."
-    printf "\r    ${YELLOW}⏳${NC} Waiting${dots}    "
+    printf "\r    ${YELLOW}⏳${NC} Waiting%s    " "$dots"
     sleep 2
 done
 echo ""
@@ -237,7 +238,7 @@ step "Container status"
 
 printf "\n"
 printf "    ${BOLD}%-28s %-12s %-18s${NC}\n" "CONTAINER" "STATUS" "PORTS"
-separator
+sep
 docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null | tail -n +2 | while IFS= read -r line; do
     name=$(echo "$line" | awk '{print $1}')
     status=$(echo "$line" | awk '{print $2}')
@@ -253,16 +254,16 @@ printf "\n"
 # ── Summary ─────────────────────────────────────────────────────
 SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
 
-echo ""
-echo -e "  ${BG_GREEN}${WHITE}${BOLD} 🍕  DEPLOYMENT COMPLETE ${NC}"
-echo ""
-echo -e "  ${BOLD}Frontend:${NC}  ${CYAN}http://${SERVER_IP}:${FRONTEND_PORT}${NC}"
-echo -e "  ${BOLD}Backend:${NC}   ${CYAN}http://${SERVER_IP}:${BACKEND_PORT}/api/health${NC}"
-echo -e "  ${BOLD}DB (dev):${NC}  ${DIM}localhost:${DB_PORT}${NC}"
-echo ""
-echo -e "  ${DIM}Useful commands:${NC}"
-echo -e "    ${YELLOW}docker compose logs -f${NC}        ${DIM}# tail all logs${NC}"
-echo -e "    ${YELLOW}docker compose logs backend${NC}   ${DIM}# backend only${NC}"
-echo -e "    ${YELLOW}docker compose down${NC}           ${DIM}# stop everything${NC}"
-echo -e "    ${YELLOW}bash deploy.sh${NC}                ${DIM}# rebuild & restart${NC}"
-echo ""
+printf "\n"
+printf "  ${BG_GREEN}${WHITE}${BOLD} 🍕  DEPLOYMENT COMPLETE ${NC}\n"
+printf "\n"
+printf "  ${BOLD}Frontend:${NC}  ${CYAN}http://%s:%s${NC}\n" "$SERVER_IP" "$FRONTEND_PORT"
+printf "  ${BOLD}Backend:${NC}   ${CYAN}http://%s:%s/api/health${NC}\n" "$SERVER_IP" "$BACKEND_PORT"
+printf "  ${BOLD}DB (dev):${NC}  ${DIM}localhost:%s${NC}\n" "$DB_PORT"
+printf "\n"
+printf "  ${DIM}Useful commands:${NC}\n"
+printf "    ${YELLOW}docker compose logs -f${NC}        ${DIM}# tail all logs${NC}\n"
+printf "    ${YELLOW}docker compose logs backend${NC}   ${DIM}# backend only${NC}\n"
+printf "    ${YELLOW}docker compose down${NC}           ${DIM}# stop everything${NC}\n"
+printf "    ${YELLOW}bash deploy.sh${NC}                ${DIM}# rebuild & restart${NC}\n"
+printf "\n"
