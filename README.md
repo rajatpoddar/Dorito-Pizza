@@ -130,7 +130,7 @@ frontend/                 React + Tailwind SPA
 └── Dockerfile            node build → nginx serve
 
 docker-compose.yml        db (postgres:16) + backend + frontend
-PLAN.md                   full architecture & planning document
+docs/                     project documentation (ARCHITECTURE, DESIGN, MEMORY, PHASE, PLAN, PRD, RULES)
 ```
 
 ## 🔌 API overview
@@ -167,4 +167,4 @@ bash tests/live_smoke_test.sh                                                   
 3. Put the app behind HTTPS (e.g. Caddy/traefik or a cloud load balancer).
 4. Point a domain at the server and update `server_name` in `frontend/nginx.conf`.
 
-Full planning document: [`PLAN.md`](./PLAN.md)
+Full planning document: [`PLAN.md`](./docs/PLAN.md)

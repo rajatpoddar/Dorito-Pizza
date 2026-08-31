@@ -131,7 +131,7 @@ def otp_send():
     # frontend can render it as a banner — keeps the OTP flow usable in dev
     # when no WhatsApp bridge is set up. OTP_DEBUG=1 always returns the code.
     wa_configured = bool(cfg.get("EVOLUTION_API_KEY"))
-    debug = bool(cfg["OTP_DEBUG"] or not wa_configured)
+    debug = bool(cfg.get("OTP_DEBUG", False) or not wa_configured)
     if debug and row.status == whatsapp.WhatsAppOutbox.STATUS_QUEUED and not wa_configured:
         # be honest: it will never leave the outbox. mark as skipped now.
         try:

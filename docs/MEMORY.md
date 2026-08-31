@@ -7,7 +7,7 @@
 > ⚠️ This file is **opinionated and informal**. For the formal spec, see `PRD.md`,
 > `ARCHITECTURE.md`, `RULES.md`, `PHASE.md`, `DESIGN.md`, `PLAN.md`.
 
-**Last refreshed:** 2026-08-28 (Phase 4 batch 2: P4.3 coverage gate (60% floor, 65% actual) + P4.7 Flask-Limiter rate limiting on 5 public endpoints)
+**Last refreshed:** 2026-08-28 (Phase 4 batch 3: P4.5 Sentry + P4.6 structured JSON logging, 79 tests / 65% coverage)
 
 ---
 
@@ -159,6 +159,20 @@ Any new env var MUST be added to `backend/.env.example` **and** documented in
   it up in lockstep with new tests, never down. The CI step is
   `pytest --cov=app --cov-report=xml --cov-branch --cov-fail-under=60`
   (the `--cov-fail-under` is read from pyproject, not the CLI).
+- **Sentry is opt-in.** If `SENTRY_DSN` is empty (the default in dev
+  and CI), the SDK is not loaded and there is zero network traffic
+  to Sentry. Set the env var in your prod `.env` to start capturing.
+  We strip request bodies (`max_request_body_size="never"`) and PII
+  (`send_default_pii=False` + a `before_send` scrubber) per RULES §5.10
+  so an OTP body can never accidentally end up in the Sentry feed.
+- **Logs are JSON to stdout.** `app/utils/logging_config.py` installs
+  a `JsonFormatter` on the root logger and a per-request middleware
+  that stamps `flask.g.request_id` (echoed in the `X-Request-ID`
+  response header). Every `app.logger.info("evt", extra={"foo": 1})`
+  becomes one JSON line; `extra` keys matching `phone|otp|password`
+  are redacted to `[REDACTED]`. The `worker.py` and `scheduler.py`
+  loggers are named (`dorito.worker`, `dorito.scheduler`) so a log
+  shipper can filter by them.
 - **`marketing_logs` dedup** uses `unique(phone, kind, period_key)`. A bug at
   month boundary (B3 in `PHASE.md`) can double-fire the winback — keep an eye.
 - **Worker process** (`python -m app.worker`) must run **separately** from

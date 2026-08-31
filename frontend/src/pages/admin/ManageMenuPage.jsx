@@ -191,7 +191,7 @@ function MenuRow({ item, onToggle, onRemove, onEdit }) {
         src={itemImage(item)}
         alt={item.name}
         className="h-14 w-14 flex-shrink-0 rounded-lg object-cover ring-1 ring-neutral-200"
-        onError={(e) => { e.currentTarget.src = '/assets/menu/pizza_01.png' }}
+        onError={(e) => { e.currentTarget.src = '/assets/menu/veg-pizza.png' }}
       />
       <div className="min-w-0 flex-1">
         <p className={`font-semibold ${item.is_available ? '' : 'text-neutral-400 line-through'}`}>
@@ -201,16 +201,28 @@ function MenuRow({ item, onToggle, onRemove, onEdit }) {
         <p className="text-xs text-neutral-400">{fmtINR(item.price)}</p>
       </div>
 
+      {/* Toggle switch — one tap to flip availability */}
       <button
         onClick={onToggle}
-        className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-          item.is_available
-            ? 'bg-green-100 text-green-700 hover:bg-green-200'
-            : 'bg-red-100 text-red-600 hover:bg-red-200'
+        className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 ${
+          item.is_available ? 'bg-green-500' : 'bg-neutral-300'
         }`}
+        role="switch"
+        aria-checked={item.is_available}
+        aria-label={item.is_available ? 'In stock — tap to mark out of stock' : 'Out of stock — tap to mark in stock'}
+        title={item.is_available ? 'In stock' : 'Out of stock'}
       >
-        {item.is_available ? 'Available' : 'Sold out'}
+        <span
+          className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out ${
+            item.is_available ? 'translate-x-6' : 'translate-x-1'
+          }`}
+        />
       </button>
+      <span className={`w-14 text-center text-[10px] font-semibold leading-tight ${
+        item.is_available ? 'text-green-600' : 'text-neutral-400'
+      }`}>
+        {item.is_available ? 'In Stock' : 'Sold Out'}
+      </span>
 
       <button
         onClick={onEdit}
@@ -231,14 +243,22 @@ function MenuRow({ item, onToggle, onRemove, onEdit }) {
   )
 }
 
+// Actual image files in public/assets/menu/ — grouped by category for the gallery picker.
 const GALLERY_FILES = [
-  'pizza_01.png','pizza_02.png','pizza_03.png','pizza_04.png','pizza_05.png','pizza_06.png','pizza_07.png',
-  'burger_01.png','burger_02.png','burger_03.png','burger_04.png','burger_05.png',
-  'fried_food_01.png','fried_food_02.png','fried_food_03.png','fried_food_04.png',
-  'fried_food_05.png','fried_food_06.png','fried_food_07.png',
-  'pasta_wrap_01.png','pasta_wrap_02.png','pasta_wrap_03.png','pasta_wrap_04.png','pasta_wrap_05.png',
-  'dessert_01.png','dessert_02.png','dessert_03.png','dessert_04.png','dessert_05.png',
-  'drink_01.png','drink_02.png','drink_03.png','drink_04.png','drink_05.png',
+  // Pizza
+  'veg-pizza.png','veg-sweet-corn-pizza.png','baby-corn-pizza.png','chicken-pizza.png',
+  'paneer-pizza.png','chicken-extra-cheese-pizza.png','dorito-special-pizza.png',
+  // Burger
+  'veg-burger.png','chicken-burger.png','paneer-burger.png','chicken-cheese-burger.png','paneer-cheese-burger.png',
+  // Chicken
+  'chicken-pakoda.png','chicken-chilli.png','butter-chicken.png','chicken-fry.png',
+  'chicken-65.png','chicken-tikka.png','roasted-chicken.png',
+  // Cake & Pasty
+  'vanilla-pudding.png','chocolate-pudding.png','pasty.png','1-pound-vanilla-cake.png','1-pound-chocolate-cake.png',
+  // Coffee & Shake
+  'coffee.png','hot-chocolate-coffee.png','cold-coffee.png','banana-shake.png','strawberry-shake.png',
+  // Pasta & Roll
+  'veg-roll.png','veg-pasta.png','chicken-roll.png','paneer-roll.png','chicken-pasta.png',
 ]
 
 function ItemEditModal({ item, categories, onClose, onSave }) {
@@ -282,7 +302,7 @@ function ItemEditModal({ item, categories, onClose, onSave }) {
             src={itemImage(draft)}
             alt="preview"
             className="h-20 w-20 flex-shrink-0 rounded-lg object-cover ring-1 ring-neutral-200"
-            onError={(e) => { e.currentTarget.src = '/assets/menu/pizza_01.png' }}
+            onError={(e) => { e.currentTarget.src = '/assets/menu/veg-pizza.png' }}
           />
           <div>
             <p className="font-semibold">{draft.name || '(no name)'}</p>

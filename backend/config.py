@@ -1,5 +1,6 @@
 """Application configuration objects."""
 import os
+from datetime import timedelta
 
 
 class BaseConfig:
@@ -10,7 +11,7 @@ class BaseConfig:
 
     # --- JWT ---
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dorito-jwt-secret-key-change-in-production")
-    JWT_ACCESS_TOKEN_EXPIRES = 60 * 60 * 24 * 30  # 30 days (mobile app friendly)
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=30)  # mobile app friendly
 
     # --- Business constants ---
     SHOP_NAME = "Dorito Pizza and Bakery"

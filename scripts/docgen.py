@@ -5,6 +5,9 @@ import sys
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+DOCS_DIR = os.path.join(PROJECT_ROOT, "docs")
+os.makedirs(DOCS_DIR, exist_ok=True)
+
 DOCS = {}
 
 DOCS['PRD.md'] = """# 📋 Product Requirements Document (PRD) - Dorito Pizza and Bakery
@@ -39,5 +42,11 @@ Traditional restaurant ordering systems are fragmented, lack real-time tracking,
 - Customer info, payment details, 4-digit OTP verification
 - Order history, auto-refresh, mark delivered with OTP confirmation
 """
-print("Wrote PRD.md (part 1)")
+# Write files to docs/ directory
+for filename, content in DOCS.items():
+    path = os.path.join(DOCS_DIR, filename)
+    with open(path, "w") as f:
+        f.write(content)
+    print(f"Wrote {filename}")
+
 print("done")

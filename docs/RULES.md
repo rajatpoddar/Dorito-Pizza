@@ -183,8 +183,8 @@
 ## 11. Frontend-Specific Rules
 
 - **Routes** live in `App.jsx`. Each role has a prefix (`/admin`, `/kitchen`, `/delivery`).
-- **Protected routes** use the `<RequireRole role="...">` wrapper from
-  `components/RequireRole.jsx`.
+- **Protected routes** use the `<ProtectedRoute roles={[...]}>` wrapper defined
+  in `App.jsx`.
 - **API calls** go through `api/client.js` (the axios instance with JWT interceptor).
   Never instantiate axios in a component.
 - **Polling** uses the `usePolling(callback, intervalMs)` hook — no raw `setInterval`

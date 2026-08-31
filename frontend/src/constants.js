@@ -148,30 +148,73 @@ export const HOME_BY_ROLE = {
  *
  * The image filename is stored on the menu item itself (image_url), set by
  * the admin via the image picker or by the seed script. This function
- * returns that path; if the item has no image set, it falls back to a
- * per-category bucket PNG so the menu never shows a broken image.
+ * returns that path; if the item has no image set, it looks up the actual
+ * file by item name, falling back to a category default.
  */
-const FALLBACK_BUCKETS = {
-  pizza: 7, burger: 5, chicken: 7, pasta: 5, cake: 5, coffee: 5,
+
+// Map of item name (lowercase) → actual file in public/assets/menu/
+const ITEM_IMAGE_MAP = {
+  // Pizza
+  'veg pizza':                'veg-pizza.png',
+  'veg sweet corn pizza':     'veg-sweet-corn-pizza.png',
+  'baby corn pizza':          'baby-corn-pizza.png',
+  'chicken pizza':            'chicken-pizza.png',
+  'paneer pizza':             'paneer-pizza.png',
+  'chicken extra cheese pizza': 'chicken-extra-cheese-pizza.png',
+  'dorito special pizza':     'dorito-special-pizza.png',
+  // Burger
+  'veg burger':               'veg-burger.png',
+  'chicken burger':           'chicken-burger.png',
+  'paneer burger':            'paneer-burger.png',
+  'chicken cheese burger':    'chicken-cheese-burger.png',
+  'paneer cheese burger':     'paneer-cheese-burger.png',
+  // Chicken
+  'chicken pakoda':           'chicken-pakoda.png',
+  'chicken chilli':           'chicken-chilli.png',
+  'butter chicken':           'butter-chicken.png',
+  'chicken fry':              'chicken-fry.png',
+  'chicken 65':               'chicken-65.png',
+  'chicken tikka':            'chicken-tikka.png',
+  'roasted chicken':          'roasted-chicken.png',
+  // Cake & Pasty
+  'vanilla pudding':          'vanilla-pudding.png',
+  'chocolate pudding':        'chocolate-pudding.png',
+  'pasty':                    'pasty.png',
+  '1 pound vanilla cake':     '1-pound-vanilla-cake.png',
+  '1 pound chocolate cake':   '1-pound-chocolate-cake.png',
+  // Coffee & Shake
+  'coffee':                   'coffee.png',
+  'hot chocolate coffee':     'hot-chocolate-coffee.png',
+  'cold coffee':              'cold-coffee.png',
+  'strawberry shake':         'strawberry-shake.png',
+  'banana shake':             'banana-shake.png',
+  // Pasta & Roll
+  'veg roll':                 'veg-roll.png',
+  'veg pasta':                'veg-pasta.png',
+  'chicken roll':             'chicken-roll.png',
+  'paneer roll':              'paneer-roll.png',
+  'chicken pasta':            'chicken-pasta.png',
 }
 
-function slugify(s) {
-  return (s || '')
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+// Category-level fallback (used when item name isn't in the map)
+const CATEGORY_FALLBACK = {
+  pizza:          'veg-pizza.png',
+  burger:         'veg-burger.png',
+  chicken:        'chicken-65.png',
+  pasta:          'veg-pasta.png',
+  cake:           'vanilla-pudding.png',
+  coffee:         'coffee.png',
 }
 
-function bucketFor(item) {
-  const cat = slugify(item.category_name || '')
-  if (cat.includes('pizza')) return 'pizza'
-  if (cat.includes('burger')) return 'burger'
-  if (cat.includes('chicken')) return 'fried_food'
-  if (cat.includes('pasta') || cat.includes('roll') || cat.includes('wrap')) return 'pasta_wrap'
-  if (cat.includes('cake') || cat.includes('pasty') || cat.includes('dessert')) return 'dessert'
-  if (cat.includes('coffee') || cat.includes('shake') || cat.includes('drink')) return 'drink'
-  return 'pizza'
+function categoryFallback(item) {
+  const cat = (item.category_name || '').toLowerCase()
+  if (cat.includes('pizza')) return CATEGORY_FALLBACK.pizza
+  if (cat.includes('burger')) return CATEGORY_FALLBACK.burger
+  if (cat.includes('chicken')) return CATEGORY_FALLBACK.chicken
+  if (cat.includes('pasta') || cat.includes('roll')) return CATEGORY_FALLBACK.pasta
+  if (cat.includes('cake') || cat.includes('pasty')) return CATEGORY_FALLBACK.cake
+  if (cat.includes('coffee') || cat.includes('shake')) return CATEGORY_FALLBACK.coffee
+  return CATEGORY_FALLBACK.pizza
 }
 
 export function itemImage(item) {
@@ -182,11 +225,11 @@ export function itemImage(item) {
       ? item.image_url
       : `/assets/menu/${item.image_url}`
   }
-  // 2) Fallback: per-category bucket PNG
-  const bucket = bucketFor(item)
-  const n = FALLBACK_BUCKETS[bucket] || 5
-  const idx = ((Number(item.id) || 1) - 1) % n + 1
-  return `/assets/menu/${bucket}_${String(idx).padStart(2, '0')}.png`
+  // 2) Look up by item name in the map
+  const key = (item.name || '').trim().toLowerCase()
+  if (ITEM_IMAGE_MAP[key]) return `/assets/menu/${ITEM_IMAGE_MAP[key]}`
+  // 3) Category-level fallback
+  return `/assets/menu/${categoryFallback(item)}`
 }
 
 export const fmtINR = (n) => `₹${Number(n ?? 0).toLocaleString('en-IN')}`

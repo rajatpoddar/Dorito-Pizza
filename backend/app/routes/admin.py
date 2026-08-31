@@ -9,6 +9,7 @@ from sqlalchemy import func
 
 from app.extensions import db
 from app.models import Category, MenuItem, Offer, Order, OrderItem, User
+from app.services import notify as notify_svc
 from app.utils.decorators import roles_required
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
@@ -132,6 +133,7 @@ def cancel_order(order_id):
 
     order.status = Order.STATUS_CANCELLED
     db.session.commit()
+    notify_svc.notify_order_event(order, "cancelled")
     return jsonify(order=order.to_dict())
 
 
@@ -456,12 +458,21 @@ def analytics():
             "revenue": round(sum(float(o.total_amount) for o in day_orders), 2),
         })
 
-    # category split (all time)
+    # category split (all time) — batch-load menu items to avoid N+1
+    item_ids = {
+        item.menu_item_id
+        for o in all_orders
+        for item in o.items
+        if item.menu_item_id
+    }
+    mi_map = {
+        mi.id: mi.category.name
+        for mi in MenuItem.query.filter(MenuItem.id.in_(item_ids)).all()
+    }
     cat_split = {}
     for o in all_orders:
         for item in o.items:
-            mi = db.session.get(MenuItem, item.menu_item_id) if item.menu_item_id else None
-            cat = mi.category.name if mi and mi.category else "Other"
+            cat = mi_map.get(item.menu_item_id, "Other")
             cat_split[cat] = cat_split.get(cat, 0.0) + float(item.unit_price) * item.quantity
     categories = [
         {"category": c, "revenue": round(v, 2)}

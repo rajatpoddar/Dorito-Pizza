@@ -21,8 +21,9 @@ Flask REST API + PostgreSQL database and one React SPA:
 ### Order Lifecycle (single source of truth)
 
 ```
-pending ──► preparing ──► ready ──► out_for_delivery ──► delivered
-   │            (Cook/KDS)  (Cook)    (Manager assigns →)   (Agent + OTP verify)
+pending ──► accepted ──► preparing ──► ready ──► out_for_delivery ──► delivered
+   │           (Manager)   (Cook/KDS)   (Cook)    (Manager assigns →)   (Agent + OTP verify)
+   └────────► rejected (Manager, with reason → customer notified)
    └────────► cancelled (Manager only, before delivery)
 ```
 
@@ -198,7 +199,7 @@ dorito/
 | customer_id | FK → users.id nullable | linked on OTP login |
 | customer_name / customer_phone | String | snapshot |
 | delivery_address | Text | |
-| status | Enum('pending','preparing','ready','out_for_delivery','delivered','cancelled') | |
+| status | Enum('pending','accepted','preparing','ready','out_for_delivery','delivered','cancelled','rejected') | |
 | payment_mode | Enum('cod','upi') | |
 | payment_status | Enum('pending','paid') | auto-paid on delivery |
 | total_amount | Numeric(10,2) | server-computed (never trust client) |
@@ -365,14 +366,16 @@ dorito/
 
 **6 categories, 34 items, exact prices:**
 
-| Category | Items (₹) |
-|----------|-----------|
-| **Pizza** | Veg Pizza 120, Veg Sweet Corn Pizza 130, Baby Corn Pizza 140, Chicken Pizza 150, Paneer Pizza 170, Chicken Extra Cheese Pizza 180, Dorito Special Pizza 180 |
-| **Burger** | Veg Burger 50, Chicken Burger 70, Paneer Burger 90, Chicken Cheese Burger 100, Paneer Cheese Burger 110 |
-| **Chicken Item** | Chicken Pakoda 120, Chicken Chilli 150, Butter Chicken 150, Chicken Fry 150, Chicken 65 150, Chicken Tikka 180, Roasted Chicken 400 |
-| **Cake and Pasty** | Vanilla Pudding 30, Chocolate Pudding 40, Pasty 40, 1 Pound Vanilla Cake 250, 1 Pound Chocolate Cake 250 |
-| **Coffee and Shake** | Coffee 20, Hot Chocolate Coffee 30, Cold Coffee 50, Strawberry Shake 50, Banana Shake 60 |
-| **Pasta and Roll** | Veg Roll 25, Veg Pasta 50, Chicken Roll 60, Paneer Roll 70, Chicken Pasta 100 |
+| Category | Items (₹) | Veg? |
+|----------|-----------|------|
+| **Pizza** | Veg Pizza 120, Veg Sweet Corn Pizza 130, Baby Corn Pizza 140, Chicken Pizza 150, Paneer Pizza 170, Chicken Extra Cheese Pizza 180, Dorito Special Pizza 180 | Veg, Veg, Veg, Non-veg, Veg, Non-veg, Non-veg |
+| **Burger** | Veg Burger 50, Chicken Burger 70, Paneer Burger 90, Chicken Cheese Burger 100, Paneer Cheese Burger 110 | Veg, Non-veg, Veg, Non-veg, Veg |
+| **Chicken Item** | Chicken Pakoda 120, Chicken Chilli 150, Butter Chicken 150, Chicken Fry 150, Chicken 65 150, Chicken Tikka 180, Roasted Chicken 400 | All Non-veg |
+| **Cake and Pasty** | Vanilla Pudding 30, Chocolate Pudding 40, Pasty 40, 1 Pound Vanilla Cake 250, 1 Pound Chocolate Cake 250 | All Veg |
+| **Coffee and Shake** | Coffee 20, Hot Chocolate Coffee 30, Cold Coffee 50, Banana Shake 50, Banana Shake 60 | All Veg |
+| **Pasta and Roll** | Veg Roll 25, Veg Pasta 50, Chicken Roll 60, Paneer Roll 70, Chicken Pasta 100 | Veg, Veg, Non-veg, Veg, Non-veg |
+
+> Note: Veg items get a 🟢 green badge; Non-veg items get a 🔴 red badge on the menu card.
 
 **Seed users (staff login by phone):**
 | Role | Phone | Password |
@@ -426,10 +429,43 @@ Dev mode: `docker compose up db` for database only; run Flask + Vite locally wit
 
 ## 9. FUTURE ENHANCEMENTS (v3.0+)
 
+### 9.1 Quick Wins (Phase 5.1)
+- [ ] Veg / Non-veg icon on every menu item card (`is_veg` column on `menu_items`)
+- [ ] Customer login tab as default on `/login` page
+- [ ] Mobile status bar theme-color meta tag
+- [ ] Rename image assets: coffee & cold coffee, strawberry shake → banana shake, chicken tikka → chicken 65
+
+### 9.2 Combo Packs (Phase 5.2)
+- [ ] ComboPack model (bundled items at discounted price)
+- [ ] Admin CRUD for combo packs
+- [ ] Combo section on menu page + server-side combo validation at checkout
+
+### 9.3 Customer Addresses + Maps (Phase 5.3)
+- [ ] Saved delivery addresses (Address model, max 5 per user)
+- [ ] Address CRUD API + UI on checkout + account page
+- [ ] Leaflet/OpenStreetMap pin-point address picker (free, no API key)
+- [ ] Show delivery location on admin order detail
+
+### 9.4 Legal Pages + Payment Gateway (Phase 5.4)
+- [ ] Terms & Conditions page (`/terms`)
+- [ ] Privacy Policy page (`/privacy`)
+- [ ] Refund & Cancellation Policy page (`/refund`)
+- [ ] Footer links to legal pages
+- [ ] Razorpay integration (UPI + Cards) — replace manual UPI confirmation
+
+### 9.5 Manager Accept/Reject Flow (Phase 5.5)
+- [ ] New order status: `accepted` between `pending` and `preparing`
+- [ ] Manager accept/reject endpoints with reject reason
+- [ ] Admin UI: Accept/Reject buttons on pending orders
+- [ ] Customer WhatsApp + in-app notification on accept/reject
+- [ ] Kitchen only sees `accepted` orders (not raw `pending`)
+
+### 9.6 Larger Features
 - [ ] Android APK via Capacitor (`frontend/android/`, `build_apk.sh`)
-- [ ] UPI payment gateway integration (Razorpay) — currently UPI = "pay to shop UPI id" + manual confirm
 - [ ] WebSockets (Flask-SocketIO) instead of polling
 - [ ] Item images upload (S3/local)
 - [ ] Order printing / thermal KOT
 - [ ] Multi-language (Hindi/English toggle)
 - [ ] Customer feedback / rating system
+- [ ] Push notifications (web push API)
+- [ ] Loyalty / rewards points

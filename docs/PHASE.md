@@ -6,7 +6,7 @@
 
 **Legend:** ✅ done · 🟡 in progress · ⏳ planned · ❌ blocked · 🚫 dropped
 
-**Last updated:** 2026-08-28 (Phase 4 batch 3: P4.5 Sentry + P4.6 structured JSON logging, 79 tests / 65% coverage)
+**Last updated:** 2026-08-31 (Phase 4 complete: cancel notification fix, JWT timedelta fix, docs reorganized to docs/)
 
 ---
 
@@ -26,6 +26,7 @@
 | Error tracking | ✅ | Sentry SDK wired; only initialises when `SENTRY_DSN` is set (no-op in dev/test) |
 | Structured logging | ✅ | JSON logs to stdout in production; `request_id` propagated via `flask.g` and into every log line; human-readable fallback in dev |
 | Production deploy | 🟡 manual | Docker compose works; no auto-deploy |
+| Docs | ✅ | Moved to `docs/` folder for cleaner root |
 
 ---
 
@@ -220,19 +221,21 @@ with a master switch on `ShopSettings`:
 
 ---
 
-## 5. Phase 4 — Hardening & Quality 🟡 IN PROGRESS (55%)
+## 5. Phase 4 — Hardening & Quality 🟡 IN PROGRESS (75%)
 
 | ID | Deliverable | Status | Notes |
 |----|-------------|--------|-------|
 | P4.1 | GitHub Actions CI (lint + tests) | ✅ | `.github/workflows/ci.yml` — backend lint+test+coverage, frontend lint+build, compose smoke, pip-audit, npm audit |
-| P4.2 | Pytest split: unit + integration + e2e | ✅ | `tests/{unit,integration,e2e}/` — 65 tests across 7 modules, 18.7 s end-to-end |
+| P4.2 | Pytest split: unit + integration + e2e | ✅ | `tests/{unit,integration,e2e}/` — 79 tests across 10 modules, 18.4 s end-to-end |
 | P4.3 | Coverage report + 60% gate | ✅ | `pyproject.toml` `[tool.coverage.*]` — floor is 60% (current: 65%); ratchet up as you add tests, never down |
 | P4.4 | `pre-commit` (black, isort, eslint, prettier) | ✅ | `.pre-commit-config.yaml` + `frontend/.eslintrc.cjs` + `frontend/.prettierrc.json` + `pyproject.toml` |
-| P4.5 | Sentry / error tracking integration | ⏳ |  |
-| P4.6 | Structured JSON logging | ⏳ | replace `current_app.logger` text format |
+| P4.5 | Sentry / error tracking integration | ✅ | `sentry-sdk[flask]==2.18.0` wired in `app/utils/sentry.py`; opt-in via `SENTRY_DSN` env var; `max_request_body_size="never"` and `send_default_pii=False` per RULES §5.10; PII redaction belt-and-braces in `before_send` |
+| P4.6 | Structured JSON logging | ✅ | `app/utils/logging_config.py` ships `JsonFormatter` + per-request middleware (request id, method, path, status, latency_ms, user_id); `app.logger.info("evt", extra={...})` is the call-site convention; `worker.py` + `scheduler.py` now use named loggers instead of `print()` |
 | P4.7 | API rate-limiter middleware (flask-limiter) | ✅ | `Flask-Limiter` wired in `app/extensions.py` + `app/__init__.py`; policy in `app/utils/ratelimit.py`; per-IP limits on `/api/auth/otp/send` (3/10m), `/otp/verify` (10/10m), `/login` (10/10m), `/register` (5/10m), `POST /api/orders` (10/10m). Disabled in test config; re-enabled in `test_rate_limiter.py` to assert 429s. |
 | P4.8 | Backups: daily `pg_dump` cron + restore runbook | ⏳ |  |
 | P4.9 | Helm / k8s manifests (alternative to compose) | ⏳ |  |
+| P4.10 | Bug fixes batch: cancel notification, JWT timedelta, OTP_DEBUG .get(), analytics N+1 | ✅ | 2026-08-31 |
+| P4.11 | Docs reorganized to `docs/` folder | ✅ | 2026-08-31 |
 
 **Why now?** Code is feature-complete; without CI/CD and proper test gates, regressions
 can land unnoticed. This is the next **highest-leverage** work.
@@ -244,25 +247,76 @@ can land unnoticed. This is the next **highest-leverage** work.
 - `pyproject.toml` — black + isort + flake8 + pytest + coverage all read from one config file; `--strict-markers` so an undeclared marker is a hard failure; `--cov-fail-under=60` enforces the coverage floor.
 - `backend/tests/conftest.py` + `backend/tests/README.md` — fixtures and tiering documented; legacy scripts (`lifecycle_test.py`, `phase2_test.py`) explicitly excluded from pytest collection; `app` fixture is function-scoped to dodge in-memory SQLite + detached-instance footguns.
 - `backend/app/utils/ratelimit.py` + Flask-Limiter wiring — 5 endpoints limited per IP per RULES.md §5.8; 429 handler returns JSON with `Retry-After`; tests pin the policy in `test_rate_limiter.py`.
+- `backend/app/utils/sentry.py` + `backend/app/utils/logging_config.py` — Sentry is opt-in (no DSN = no SDK), structured JSON logs with correlation id flow through `flask.g`, and the existing `print()` calls in `worker.py` / `scheduler.py` are now real `logger` calls. The `JsonFormatter` redacts any `phone`/`otp`/`password` keys before they reach stdout / Sentry.
 
 ---
 
-## 6. Phase 5 — v3.0 Enhancements ⏳ PLANNED (0%)
+## 6. Phase 5 — UX Polish + Production Readiness ⏳ PLANNED (0%)
 
-Pulled from `PLAN.md` §9 and not yet started:
+Priority order — quick wins first, then bigger features.
+
+### 6.1 Quick Wins (1 day)
 
 | ID | Deliverable | Status | Notes |
 |----|-------------|--------|-------|
-| P5.1 | Android APK via Capacitor (`frontend/android/`, `build_apk.sh`) | ⏳ |  |
-| P5.2 | UPI payment gateway (Razorpay) | ⏳ | today UPI = "pay to shop UPI id" + manual confirm |
-| P5.3 | WebSockets via Flask-SocketIO (replace polling) | ⏳ |  |
-| P5.4 | Item image upload (S3 or local volume) | ⏳ |  |
-| P5.5 | Thermal KOT / order printing | ⏳ |  |
-| P5.6 | Multi-language toggle (Hindi / English) | ⏳ |  |
-| P5.7 | Customer feedback / rating system | ⏳ |  |
-| P5.8 | Push notifications (web push API) | ⏳ |  |
-| P5.9 | Loyalty / rewards points | ⏳ |  |
-| P5.10 | Multi-shop / franchise support | ⏳ |  |
+| P5.1 | Veg / Non-veg icon on every menu item card | ⏳ | Green `🟢` veg, Red `🔴` non-veg badge on `MenuItemCard.jsx`; add `is_veg` boolean to `MenuItem` model + DB column |
+| P5.2 | Customer login tab as default on `/login` | ⏳ | `LoginPage.jsx`: change `useState('staff')` → `useState('otp')` so customer OTP is the first tab |
+| P5.3 | Mobile status bar color (PWA theme-color) | ⏳ | Add `<meta name="theme-color" content="#1a1a1a">` to `index.html`; update `manifest.json` theme_color |
+| P5.4 | Rename coffee & cold coffee images | ⏳ | Update image filenames in `public/assets/menu/` + seed data `image_url` |
+| P5.5 | Rename strawberry shake image → banana shake | ⏳ | Same as above |
+| P5.6 | Rename chicken tikka image → chicken 65 | ⏳ | Same as above |
+
+### 6.2 Combo Packs (1 day)
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P5.7 | `ComboPack` model (name, items, combo price, savings label) | ⏳ | New DB table; admin CRUD for combos |
+| P5.8 | Combo packs displayed on menu page | ⏳ | New "Combo Packs" section on `MenuPage.jsx` with bundled pricing |
+| P5.9 | Combo pack ordering (backend computes total from member items) | ⏳ | Server validates combo items exist + prices, snapshots at checkout |
+
+### 6.3 Customer Saved Addresses (1 day)
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P5.10 | `Address` model (user_id, label, full_address, lat, lng, is_default) | ⏳ | New DB table |
+| P5.11 | `GET/POST/PUT/DELETE /api/addresses` CRUD | ⏳ | Auth-protected, max 5 per user |
+| P5.12 | Address picker on checkout + account page | ⏳ | `CheckoutPage.jsx` shows saved addresses; `AccountPage.jsx` address management |
+
+### 6.4 Maps Integration (1–2 days)
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P5.13 | Map-based address picker (Leaflet + OpenStreetMap — free, no API key) | ⏳ | Drop-in map component on checkout; pin drag → reverse geocode → fill address field |
+| P5.14 | Show delivery location on admin order detail | ⏳ | Static map thumbnail in `ManageOrdersPage.jsx` |
+
+### 6.5 Legal Pages + Razorpay Prep (1–2 days)
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P5.15 | Terms & Conditions page (`/terms`) | ⏅ | Static page, linked from footer |
+| P5.16 | Privacy Policy page (`/privacy`) | ⏅ | Static page, linked from footer |
+| P5.17 | Refund & Cancellation Policy page (`/refund`) | ⏅ | Static page, linked from footer |
+| P5.18 | Footer links updated to include legal pages | ⏳ | `Footer.jsx` |
+| P5.19 | Razorpay integration (UPI + Cards) | ⏅ | Replace manual UPI with Razorpay checkout; `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` env vars; order creation flow |
+
+### 6.6 Manager Accept/Reject Flow (2 days)
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P5.20 | New order status: `accepted` between `pending` and `preparing` | ⏳ | Update `Order.STATUSES` enum + `STATUS_FLOW` in `constants.js` |
+| P5.21 | `POST /api/admin/orders/:id/accept` endpoint | ⏳ | Manager reviews → accepts → order moves to kitchen queue |
+| P5.22 | `POST /api/admin/orders/:id/reject` endpoint with `reject_reason` | ⏳ | Manager rejects → customer gets WhatsApp notification + in-app notif with reason |
+| P5.23 | Admin ManageOrders UI: Accept / Reject buttons on pending orders | ⏳ | Reject opens modal for reason input |
+| P5.24 | Customer notification on accept/reject | ⏳ | WhatsApp + in-app: "Order accepted 🎉" or "Order rejected: {reason} 😔" |
+| P5.25 | Kitchen only sees `accepted` orders (not raw `pending`) | ⏳ | Update `kitchen.py` query filter |
+
+### 6.7 Production Hardening (ongoing)
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P5.26 | Daily `pg_dump` backup cron | ⏳ | P4.8 — needed before any real customer |
+| P5.27 | Android APK via Capacitor | ⏳ | After Razorpay lands |
+| P5.28 | HTTPS + domain setup docs | ⏳ | Runbook for production deploy |
 
 
 ---
@@ -380,9 +434,9 @@ A phase is "done" only when **all** of the following are true:
 
 If you have one week of focused time, work in this order to maximize value:
 
-1. **P4.5 / P4.6** Sentry + JSON logging (1 day) — production observability;
-   the only Phase 4 work left in this category.
-2. **B3** Marketing winback boundary (½ day) — the one remaining open bug.
+1. **B3** Marketing winback boundary (½ day) — the one remaining open bug.
+2. **P4.8** Daily `pg_dump` cron + restore runbook (½ day) — needed
+   before any real customer goes live.
 3. **P5.2** Razorpay UPI (2 days) — the highest-impact v3.0 feature for
    a real shop.
 4. **P5.6** Hindi / English toggle (1 day) — Desi UX win.
@@ -398,8 +452,8 @@ work can be prioritized by user demand.
 
 | Metric | Value |
 |--------|-------|
-| Backend Python files | 32 (+ `app/utils/phone.py`) |
-| Backend lines of code (excl. venv) | ~3 350 |
+| Backend Python files | 35 (incl. `app/utils/{phone,ratelimit,sentry,logging_config}.py`) |
+| Backend lines of code (excl. venv) | ~3 700 |
 | Frontend JSX files | 25 |
 | Frontend JS files | 3 new (`usePolling`, `useCountdown`, `index`) |
 | Frontend lines of code (excl. node_modules) | ~3 500 |
@@ -407,6 +461,6 @@ work can be prioritized by user demand.
 | API endpoints | 50+ |
 | Background processes | 2 (worker, scheduler) |
 | Docker services | 3 (db, backend, frontend) |
-| Test files | 7 pytest modules + 2 legacy scripts (29 unit + 32 integration + 1 e2e + 4 rate-limiter = 65 tests, 18.7 s) |
+| Test files | 10 pytest modules + 2 legacy scripts (39 unit + 38 integration + 1 e2e + 1 logging + 1 request-logging = 79 tests, 18.4 s) |
 | Documentation files | 7 (README, PLAN, PRD, ARCHITECTURE, RULES, PHASE, DESIGN) + 1 (MEMORY) + 2 new (tests/README.md, migrations/notes.md) |
 
