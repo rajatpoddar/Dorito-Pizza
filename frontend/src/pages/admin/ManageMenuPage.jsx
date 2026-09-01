@@ -61,6 +61,7 @@ export default function ManageMenuPage() {
         price: Number(item.price),
         category_id: Number(item.category_id),
         is_available: item.is_available,
+        is_veg: item.is_veg !== false,
         image_url: item.image_url || '',
       })
       flash(`✏️ ${item.name} updated`)
@@ -72,11 +73,15 @@ export default function ManageMenuPage() {
   }
 
   const toggleAvailability = async (item) => {
+    if (!item?.id) {
+      alert('Item ID missing — please refresh the page and try again.')
+      return
+    }
     try {
       await api.put(`/admin/menu-items/${item.id}`, { is_available: !item.is_available })
       load()
     } catch (err) {
-      alert(errMessage(err))
+      alert(errMessage(err, 'Failed to update item'))
     }
   }
 
@@ -187,12 +192,22 @@ export default function ManageMenuPage() {
 function MenuRow({ item, onToggle, onRemove, onEdit }) {
   return (
     <div className="flex flex-wrap items-center gap-3 p-3">
-      <img
-        src={itemImage(item)}
-        alt={item.name}
-        className="h-14 w-14 flex-shrink-0 rounded-lg object-cover ring-1 ring-neutral-200"
-        onError={(e) => { e.currentTarget.src = '/assets/menu/veg-pizza.png' }}
-      />
+      <div className="relative flex-shrink-0">
+        <img
+          src={itemImage(item)}
+          alt={item.name}
+          className="h-14 w-14 rounded-lg object-cover ring-1 ring-neutral-200"
+          onError={(e) => { e.currentTarget.src = '/assets/menu/veg-pizza.png' }}
+        />
+        {/* Veg / Non-veg badge */}
+        <span
+          className={`absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-sm border-[1.5px] ${
+            item.is_veg !== false ? 'border-green-600 bg-white' : 'border-red-600 bg-white'
+          }`}
+        >
+          <span className={`h-2 w-2 rounded-full ${item.is_veg !== false ? 'bg-green-600' : 'bg-red-600'}`} />
+        </span>
+      </div>
       <div className="min-w-0 flex-1">
         <p className={`font-semibold ${item.is_available ? '' : 'text-neutral-400 line-through'}`}>
           {item.name}
@@ -415,14 +430,24 @@ function ItemEditModal({ item, categories, onClose, onSave }) {
             value={draft.description || ''}
             onChange={(e) => setDraft({ ...draft, description: e.target.value })}
           />
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={draft.is_available}
-              onChange={(e) => setDraft({ ...draft, is_available: e.target.checked })}
-            />
-            Available for ordering
-          </label>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={draft.is_available}
+                onChange={(e) => setDraft({ ...draft, is_available: e.target.checked })}
+              />
+              Available for ordering
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={draft.is_veg !== false}
+                onChange={(e) => setDraft({ ...draft, is_veg: e.target.checked })}
+              />
+              {draft.is_veg !== false ? '🟢 Veg' : '🔴 Non-veg'}
+            </label>
+          </div>
         </div>
 
         <div className="mt-5 flex gap-2">

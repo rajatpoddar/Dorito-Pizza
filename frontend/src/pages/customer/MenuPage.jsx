@@ -5,6 +5,7 @@ import { useCart } from '../../context/CartContext'
 import { fmtINR, CATEGORY_EMOJI } from '../../constants'
 import MenuItemCard from '../../components/MenuItemCard'
 import HeroCarousel from '../../components/HeroCarousel'
+import ComboPackCard from '../../components/ComboPackCard'
 import { useShopStatus } from '../../context/ShopContext'
 
 const CAT_PILL_COLORS = {
@@ -23,6 +24,7 @@ export default function MenuPage() {
   // Checkout) without a duplicate /api/settings call.
   const { isOpen } = useShopStatus()
   const [categories, setCategories] = useState([])
+  const [comboPacks, setComboPacks] = useState([])
   const [offers, setOffers] = useState([])
   const [shop, setShop] = useState(null)
   const [search, setSearch] = useState('')
@@ -40,6 +42,10 @@ export default function MenuPage() {
       setCategories(c.data.categories || [])
       setOffers((o.data.offers || []).slice(0, 4))
       setShop(s.data || null)
+    })
+    api.get('/menu/combo-packs').catch(() => ({ data: { combo_packs: [] } })).then((r) => {
+      if (!alive) return
+      setComboPacks(r.data.combo_packs || [])
     })
     return () => { alive = false }
   }, [])
@@ -187,6 +193,23 @@ export default function MenuPage() {
           ))}
         </div>
       </section>
+
+      {/* ═══════════ COMBO PACKS ═══════════ */}
+      {comboPacks.length > 0 && !search && (
+        <section className="mx-auto max-w-6xl px-4 pb-4">
+          <div className="mb-2 flex items-end justify-between">
+            <h2 className="font-display text-xl font-bold text-brand-dark">
+              🎉 Combo Packs
+            </h2>
+            <span className="text-xs text-neutral-500">Bundles · save more</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {comboPacks.map((combo) => (
+              <ComboPackCard key={combo.id} combo={combo} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ═══════════ BESTSELLERS (horizontal scroll) ═══════════ */}
       {bestsellers.length > 0 && !search && (

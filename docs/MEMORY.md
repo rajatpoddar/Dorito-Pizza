@@ -7,7 +7,7 @@
 > ⚠️ This file is **opinionated and informal**. For the formal spec, see `PRD.md`,
 > `ARCHITECTURE.md`, `RULES.md`, `PHASE.md`, `DESIGN.md`, `PLAN.md`.
 
-**Last refreshed:** 2026-08-28 (Phase 4 batch 3: P4.5 Sentry + P4.6 structured JSON logging, 79 tests / 65% coverage)
+**Last refreshed:** 2026-09-01 (Phase 5.2: combo packs with admin CRUD + customer menu section)
 
 ---
 
@@ -92,6 +92,7 @@ React SPA ──► /api/* (Flask 3 + SQLAlchemy)
 | Broadcast UI | `frontend/src/pages/admin/MarketingPage.jsx` (live template check + click-to-insert chips) |
 | Shop open/closed | `ShopSettings.is_shop_open` + `closed_message`; `POST /api/orders` returns 503 when off; `ShopContext` polls `/api/settings` every 60 s |
 | Menu seed data | `backend/seed.py` |
+| Combo packs | `backend/app/models/combo_pack.py` + `frontend/src/components/ComboPackCard.jsx` |
 | Brand colors | `frontend/tailwind.config.js` |
 | Customer pages | `frontend/src/pages/customer/` |
 | Admin pages | `frontend/src/pages/admin/` |
@@ -237,10 +238,12 @@ FLASK_CONFIG=test pytest tests/ --cov=app # with coverage report
 
 ### 7.5 Reset the dev database
 ```bash
-rm -f .local_dev.db
+rm -f .local_dev.db backend/.local_dev.db
 cd backend && source .venv/bin/activate
-python seed.py
+DATABASE_URL="sqlite:////<project_root>/.local_dev.db" python seed.py
 ```
+> **Note:** After adding new DB columns (like `is_veg`), you MUST delete the old
+> `.local_dev.db` and re-seed. Schema auto-heal helps but a clean seed is safer.
 
 ### 7.6 Tail backend logs (Docker)
 ```bash
@@ -270,6 +273,8 @@ docker compose exec db psql -U dorito -c \
 | 2026-08-27 | Worker + scheduler as separate procs | scale independently, no event-loop conflict |
 | 2026-08-27 | Outbox pattern for WA | survives API downtime, audit trail, rate-limit |
 | 2026-08-28 | This MEMORY.md file | to onboard new contributors / AI agents fast |
+| 2026-08-31 | `is_veg` on MenuItem | Veg/non-veg badge on every menu card + admin |
+| 2026-08-31 | Combo packs | `ComboPack` + `ComboPackItem` models; admin CRUD + customer menu section |
 
 ---
 

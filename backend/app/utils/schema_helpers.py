@@ -18,6 +18,7 @@ REQUIRED_COLUMNS = [
     ("users", "last_login_at", "TIMESTAMP", "TIMESTAMPTZ"),
     ("users", "marketing_optin", "BOOLEAN DEFAULT 1", "BOOLEAN DEFAULT TRUE"),
     ("categories", "image_url", "VARCHAR(255)", "VARCHAR(255)"),
+    ("menu_items", "is_veg", "BOOLEAN DEFAULT 1", "BOOLEAN DEFAULT TRUE"),
     # Shop availability switch — when False, /api/orders POST returns 503.
     # Default TRUE so existing rows / fresh DBs continue accepting orders
     # until the manager explicitly closes the shop.

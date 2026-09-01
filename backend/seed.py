@@ -7,7 +7,7 @@ import sys
 
 from app import create_app
 from app.extensions import db
-from app.models import Category, MenuItem, User
+from app.models import Category, ComboPack, ComboPackItem, MenuItem, User
 
 # (display_order, category_name, image, [(item, price, description), ...])
 CATEGORY_IMAGES = {
@@ -65,52 +65,54 @@ ITEM_IMAGES = {
     "Chicken Pasta":               "/assets/menu/chicken-pasta.png",
 }
 
+# (display_order, category_name, [(item_name, price, description, is_veg), ...])
+# is_veg: True = veg 🟢, False = non-veg 🔴
 MENU = [
     (1, "Pizza", [
-        ("Veg Pizza", 120, "Classic veggie pizza with fresh vegetables and cheese"),
-        ("Veg Sweet Corn Pizza", 130, "Sweet corn toppings with melted cheese"),
-        ("Baby Corn Pizza", 140, "Crunchy baby corn with cheese and herbs"),
-        ("Chicken Pizza", 150, "Loaded with juicy chicken chunks"),
-        ("Paneer Pizza", 170, "Soft paneer cubes with tangy sauce"),
-        ("Chicken Extra Cheese Pizza", 180, "Double cheese with chicken — a fan favourite"),
-        ("Dorito Special Pizza", 180, "Our house special — fully loaded"),
+        ("Veg Pizza", 120, "Classic veggie pizza with fresh vegetables and cheese", True),
+        ("Veg Sweet Corn Pizza", 130, "Sweet corn toppings with melted cheese", True),
+        ("Baby Corn Pizza", 140, "Crunchy baby corn with cheese and herbs", True),
+        ("Chicken Pizza", 150, "Loaded with juicy chicken chunks", False),
+        ("Paneer Pizza", 170, "Soft paneer cubes with tangy sauce", True),
+        ("Chicken Extra Cheese Pizza", 180, "Double cheese with chicken — a fan favourite", False),
+        ("Dorito Special Pizza", 180, "Our house special — fully loaded", False),
     ]),
     (2, "Burger", [
-        ("Veg Burger", 50, "Crispy veg patty with mayo and lettuce"),
-        ("Chicken Burger", 70, "Juicy chicken patty burger"),
-        ("Paneer Burger", 90, "Grilled paneer patty with spices"),
-        ("Chicken Cheese Burger", 100, "Chicken patty with a cheese slice"),
-        ("Paneer Cheese Burger", 110, "Paneer patty topped with cheese"),
+        ("Veg Burger", 50, "Crispy veg patty with mayo and lettuce", True),
+        ("Chicken Burger", 70, "Juicy chicken patty burger", False),
+        ("Paneer Burger", 90, "Grilled paneer patty with spices", True),
+        ("Chicken Cheese Burger", 100, "Chicken patty with a cheese slice", False),
+        ("Paneer Cheese Burger", 110, "Paneer patty topped with cheese", True),
     ]),
     (3, "Chicken Item", [
-        ("Chicken Pakoda", 120, "Golden-fried chicken fritters"),
-        ("Chicken Chilli", 150, "Spicy indo-chilli style chicken"),
-        ("Butter Chicken", 150, "Rich and creamy tomato butter gravy"),
-        ("Chicken Fry", 150, "Crispy fried chicken"),
-        ("Chicken 65", 150, "Fiery south-Indian style chicken 65"),
-        ("Chicken Tikka", 180, "Char-grilled marinated chicken tikka"),
-        ("Roasted Chicken", 400, "Full roasted chicken — perfect for sharing"),
+        ("Chicken Pakoda", 120, "Golden-fried chicken fritters", False),
+        ("Chicken Chilli", 150, "Spicy indo-chilli style chicken", False),
+        ("Butter Chicken", 150, "Rich and creamy tomato butter gravy", False),
+        ("Chicken Fry", 150, "Crispy fried chicken", False),
+        ("Chicken 65", 150, "Fiery south-Indian style chicken 65", False),
+        ("Chicken Tikka", 180, "Char-grilled marinated chicken tikka", False),
+        ("Roasted Chicken", 400, "Full roasted chicken — perfect for sharing", False),
     ]),
     (4, "Cake and Pasty", [
-        ("Vanilla Pudding", 30, "Smooth vanilla pudding cup"),
-        ("Chocolate Pudding", 40, "Rich chocolate pudding cup"),
-        ("Pasty", 40, "Flaky bakery pasty with savoury filling"),
-        ("1 Pound Vanilla Cake", 250, "Soft vanilla sponge cake (1 pound)"),
-        ("1 Pound Chocolate Cake", 250, "Decadent chocolate cake (1 pound)"),
+        ("Vanilla Pudding", 30, "Smooth vanilla pudding cup", True),
+        ("Chocolate Pudding", 40, "Rich chocolate pudding cup", True),
+        ("Pasty", 40, "Flaky bakery pasty with savoury filling", True),
+        ("1 Pound Vanilla Cake", 250, "Soft vanilla sponge cake (1 pound)", True),
+        ("1 Pound Chocolate Cake", 250, "Decadent chocolate cake (1 pound)", True),
     ]),
     (5, "Coffee and Shake", [
-        ("Coffee", 20, "Hot regular coffee"),
-        ("Hot Chocolate Coffee", 30, "Coffee blended with hot chocolate"),
-        ("Cold Coffee", 50, "Chilled creamy cold coffee"),
-        ("Strawberry Shake", 50, "Fresh strawberry milkshake"),
-        ("Banana Shake", 60, "Thick banana milkshake"),
+        ("Coffee", 20, "Hot regular coffee", True),
+        ("Hot Chocolate Coffee", 30, "Coffee blended with hot chocolate", True),
+        ("Cold Coffee", 50, "Chilled creamy cold coffee", True),
+        ("Strawberry Shake", 50, "Fresh strawberry milkshake", True),
+        ("Banana Shake", 60, "Thick banana milkshake", True),
     ]),
     (6, "Pasta and Roll", [
-        ("Veg Roll", 25, "Spicy veg filling rolled in flaky pastry"),
-        ("Veg Pasta", 50, "Veg pasta in tangy red sauce"),
-        ("Chicken Roll", 60, "Chicken filling rolled in flaky pastry"),
-        ("Paneer Roll", 70, "Paneer filling rolled in flaky pastry"),
-        ("Chicken Pasta", 100, "Chicken pasta in creamy sauce"),
+        ("Veg Roll", 25, "Spicy veg filling rolled in flaky pastry", True),
+        ("Veg Pasta", 50, "Veg pasta in tangy red sauce", True),
+        ("Chicken Roll", 60, "Chicken filling rolled in flaky pastry", False),
+        ("Paneer Roll", 70, "Paneer filling rolled in flaky pastry", True),
+        ("Chicken Pasta", 100, "Chicken pasta in creamy sauce", False),
     ]),
 ]
 
@@ -151,7 +153,7 @@ def seed(reset: bool = False) -> None:
             elif not category.image_url:
                 # backfill images on older databases
                 category.image_url = CATEGORY_IMAGES.get(cat_name)
-            for name, price, desc in items:
+            for name, price, desc, is_veg in items:
                 item_image = ITEM_IMAGES.get(name)
                 existing = MenuItem.query.filter_by(name=name).first()
                 if existing is None:
@@ -159,14 +161,17 @@ def seed(reset: bool = False) -> None:
                         MenuItem(
                             category_id=category.id, name=name,
                             price=price, description=desc,
-                            image_url=item_image,
+                            image_url=item_image, is_veg=is_veg,
                         )
                     )
-                    print(f"    + item: {name} (₹{price})")
-                elif item_image and not existing.image_url:
-                    # backfill the per-item image on items seeded before
-                    # the artwork table was added (run-once, idempotent).
-                    existing.image_url = item_image
+                    print(f"    + item: {name} (₹{price}) {'🟢' if is_veg else '🔴'}")
+                else:
+                    # backfill image + is_veg on items seeded before
+                    # these fields were added (run-once, idempotent).
+                    if item_image and not existing.image_url:
+                        existing.image_url = item_image
+                    if not hasattr(existing, 'is_veg') or existing.is_veg is None:
+                        existing.is_veg = is_veg
         db.session.commit()
 
         # ---------- users ----------
@@ -203,7 +208,76 @@ def seed(reset: bool = False) -> None:
             print("  + offers: DORITO20, WELCOME50")
 
         db.session.commit()
+
+        # ---------- combo packs (idempotent) ----------
+        if ComboPack.query.count() == 0:
+            _seed_combo_packs()
+
+        db.session.commit()
         print(f"\n✅ Seed complete — {cats} categories, {items} items, {users} users.")
+
+
+def _seed_combo_packs() -> None:
+    """Create sample combo packs from existing menu items."""
+    combos = [
+        {
+            "name": "Pizza + Burger Combo",
+            "description": "Veg Pizza + Veg Burger — save ₹70!",
+            "combo_price": 150,
+            "items": [
+                ("Veg Pizza", 1),
+                ("Veg Burger", 1),
+            ],
+        },
+        {
+            "name": "Chicken Lovers Combo",
+            "description": "Chicken 65 + Chicken Roll — save ₹60!",
+            "combo_price": 150,
+            "items": [
+                ("Chicken 65", 1),
+                ("Chicken Roll", 1),
+            ],
+        },
+        {
+            "name": "Coffee Break Combo",
+            "description": "Cold Coffee + Pasty — save ₹30!",
+            "combo_price": 60,
+            "items": [
+                ("Cold Coffee", 1),
+                ("Pasty", 1),
+            ],
+        },
+        {
+            "name": "Veg Feast Combo",
+            "description": "Paneer Pizza + Veg Pasta + Banana Shake — save ₹150!",
+            "combo_price": 250,
+            "items": [
+                ("Paneer Pizza", 1),
+                ("Veg Pasta", 1),
+                ("Banana Shake", 1),
+            ],
+        },
+    ]
+
+    for idx, combo in enumerate(combos, start=1):
+        cp = ComboPack(
+            name=combo["name"],
+            description=combo["description"],
+            combo_price=combo["combo_price"],
+            display_order=idx,
+        )
+        db.session.add(cp)
+        db.session.flush()  # get cp.id
+        for item_idx, (item_name, qty) in enumerate(combo["items"], start=1):
+            mi = MenuItem.query.filter_by(name=item_name).first()
+            if mi:
+                db.session.add(ComboPackItem(
+                    combo_pack_id=cp.id,
+                    menu_item_id=mi.id,
+                    quantity=qty,
+                    display_order=item_idx,
+                ))
+        print(f"  + combo: {combo['name']} (₹{combo['combo_price']})")
 
 
 if __name__ == "__main__":

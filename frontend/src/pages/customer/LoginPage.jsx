@@ -13,7 +13,7 @@ export default function LoginPage() {
   // Default to staff login — this page is meant for staff. Customers can
   // log in from the checkout page or the Track Order page (both do OTP
   // inline), so they don't need a dedicated /login screen.
-  const [mode, setMode] = useState('staff')          // staff | otp
+  const [mode, setMode] = useState('otp')           // otp | staff (customer first by default)
   const [step, setStep] = useState('phone')          // phone | code (OTP flow)
   const [form, setForm] = useState({ phone: '', password: '', name: '', otp: '' })
   const [isNew, setIsNew] = useState(false)

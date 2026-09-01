@@ -15,6 +15,7 @@ class MenuItem(db.Model):
     description = db.Column(db.Text, nullable=True)
     price = db.Column(db.Numeric(10, 2), nullable=False)
     is_available = db.Column(db.Boolean, nullable=False, default=True)
+    is_veg = db.Column(db.Boolean, nullable=False, default=True)  # True = veg, False = non-veg
     image_url = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(
@@ -34,6 +35,7 @@ class MenuItem(db.Model):
             "description": self.description,
             "price": float(self.price),
             "is_available": self.is_available,
+            "is_veg": self.is_veg,
             "image_url": self.image_url,
         }
 

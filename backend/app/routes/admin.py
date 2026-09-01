@@ -8,7 +8,7 @@ from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import func
 
 from app.extensions import db
-from app.models import Category, MenuItem, Offer, Order, OrderItem, User
+from app.models import Category, ComboPack, ComboPackItem, MenuItem, Offer, Order, OrderItem, User
 from app.services import notify as notify_svc
 from app.utils.decorators import roles_required
 
@@ -188,6 +188,7 @@ def add_menu_item():
         description=(data.get("description") or "").strip() or None,
         price=price,
         is_available=bool(data.get("is_available", True)),
+        is_veg=bool(data.get("is_veg", True)),
         image_url=(data.get("image_url") or "").strip() or None,
     )
     db.session.add(item)
@@ -217,6 +218,8 @@ def update_menu_item(item_id):
         item.price = price
     if "is_available" in data:
         item.is_available = bool(data["is_available"])
+    if "is_veg" in data:
+        item.is_veg = bool(data["is_veg"])
     if "category_id" in data:
         category = db.session.get(Category, data["category_id"])
         if category is None:
@@ -524,6 +527,122 @@ def analytics():
             "discount_given": round(sum(float(o.discount_amount or 0) for o in all_orders), 2),
         },
     )
+
+
+# ------------------------------------------------------------------ combo packs
+@admin_bp.get("/combo-packs")
+@roles_required("manager")
+def list_combo_packs():
+    combos = ComboPack.query.order_by(ComboPack.display_order, ComboPack.name).all()
+    return jsonify(combo_packs=[c.admin_dict() for c in combos])
+
+
+@admin_bp.post("/combo-packs")
+@roles_required("manager")
+def create_combo_pack():
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        return jsonify(error="Combo name is required"), 400
+
+    try:
+        combo_price = round(float(data.get("combo_price", 0)), 2)
+    except (TypeError, ValueError):
+        return jsonify(error="combo_price must be a number"), 400
+    if combo_price <= 0:
+        return jsonify(error="combo_price must be greater than 0"), 400
+
+    raw_items = data.get("items") or []
+    if not raw_items:
+        return jsonify(error="Add at least one item to the combo"), 400
+    if len(raw_items) > 10:
+        return jsonify(error="Maximum 10 items per combo"), 400
+
+    cp = ComboPack(
+        name=name,
+        description=(data.get("description") or "").strip() or None,
+        combo_price=combo_price,
+        is_active=bool(data.get("is_active", True)),
+        display_order=int(data.get("display_order") or 0),
+    )
+    db.session.add(cp)
+    db.session.flush()
+
+    for idx, line in enumerate(raw_items, start=1):
+        mi_id = line.get("menu_item_id")
+        mi = db.session.get(MenuItem, mi_id)
+        if mi is None:
+            return jsonify(error=f"Menu item {mi_id} not found"), 400
+        qty = int(line.get("quantity", 1))
+        if qty < 1 or qty > 5:
+            return jsonify(error="Quantity must be 1-5"), 400
+        db.session.add(ComboPackItem(
+            combo_pack_id=cp.id,
+            menu_item_id=mi.id,
+            quantity=qty,
+            display_order=idx,
+        ))
+
+    db.session.commit()
+    return jsonify(combo_pack=cp.admin_dict()), 201
+
+
+@admin_bp.put("/combo-packs/<int:combo_id>")
+@roles_required("manager")
+def update_combo_pack(combo_id):
+    cp = db.session.get(ComboPack, combo_id)
+    if cp is None:
+        return jsonify(error="Combo pack not found"), 404
+    data = request.get_json(silent=True) or {}
+
+    if "name" in data and (data["name"] or "").strip():
+        cp.name = data["name"].strip()
+    if "description" in data:
+        cp.description = (data["description"] or "").strip() or None
+    if "combo_price" in data:
+        try:
+            cp.combo_price = round(float(data["combo_price"]), 2)
+        except (TypeError, ValueError):
+            return jsonify(error="combo_price must be a number"), 400
+    if "is_active" in data:
+        cp.is_active = bool(data["is_active"])
+    if "display_order" in data:
+        cp.display_order = int(data["display_order"])
+
+    # Replace items if provided
+    if "items" in data:
+        raw_items = data["items"]
+        if not raw_items:
+            return jsonify(error="Add at least one item to the combo"), 400
+        ComboPackItem.query.filter_by(combo_pack_id=cp.id).delete()
+        db.session.flush()
+        for idx, line in enumerate(raw_items, start=1):
+            mi = db.session.get(MenuItem, line.get("menu_item_id"))
+            if mi is None:
+                return jsonify(error=f"Menu item {line.get('menu_item_id')} not found"), 400
+            qty = int(line.get("quantity", 1))
+            if qty < 1 or qty > 5:
+                return jsonify(error="Quantity must be 1-5"), 400
+            db.session.add(ComboPackItem(
+                combo_pack_id=cp.id,
+                menu_item_id=mi.id,
+                quantity=qty,
+                display_order=idx,
+            ))
+
+    db.session.commit()
+    return jsonify(combo_pack=cp.admin_dict())
+
+
+@admin_bp.delete("/combo-packs/<int:combo_id>")
+@roles_required("manager")
+def delete_combo_pack(combo_id):
+    cp = db.session.get(ComboPack, combo_id)
+    if cp is None:
+        return jsonify(error="Combo pack not found"), 404
+    db.session.delete(cp)
+    db.session.commit()
+    return jsonify(message=f"Combo '{cp.name}' deleted")
 
 
 # ------------------------------------------------------------------ broadcast

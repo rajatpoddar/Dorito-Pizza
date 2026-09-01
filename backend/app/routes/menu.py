@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, request
 
 from app.extensions import db
-from app.models import Category, MenuItem
+from app.models import Category, ComboPack, MenuItem
 
 menu_bp = Blueprint("menu", __name__, url_prefix="/api/menu")
 
@@ -37,3 +37,15 @@ def get_item(item_id):
     if item is None:
         return jsonify(error="Menu item not found"), 404
     return jsonify(item=item.to_dict())
+
+
+@menu_bp.get("/combo-packs")
+def list_combo_packs():
+    """Active combo packs for the customer menu page."""
+    combos = (
+        ComboPack.query
+        .filter_by(is_active=True)
+        .order_by(ComboPack.display_order, ComboPack.name)
+        .all()
+    )
+    return jsonify(combo_packs=[c.to_dict() for c in combos])

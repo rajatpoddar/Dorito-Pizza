@@ -6,7 +6,7 @@
 
 **Legend:** ✅ done · 🟡 in progress · ⏳ planned · ❌ blocked · 🚫 dropped
 
-**Last updated:** 2026-08-31 (Phase 4 complete: cancel notification fix, JWT timedelta fix, docs reorganized to docs/)
+**Last updated:** 2026-09-01 (Phase 5.2 complete: combo packs with admin CRUD + customer menu section)
 
 ---
 
@@ -251,28 +251,28 @@ can land unnoticed. This is the next **highest-leverage** work.
 
 ---
 
-## 6. Phase 5 — UX Polish + Production Readiness ⏳ PLANNED (0%)
+## 6. Phase 5 — UX Polish + Production Readiness 🟡 IN PROGRESS (20%)
 
 Priority order — quick wins first, then bigger features.
 
-### 6.1 Quick Wins (1 day)
+### 6.1 Quick Wins ✅ COMPLETE
 
 | ID | Deliverable | Status | Notes |
 |----|-------------|--------|-------|
-| P5.1 | Veg / Non-veg icon on every menu item card | ⏳ | Green `🟢` veg, Red `🔴` non-veg badge on `MenuItemCard.jsx`; add `is_veg` boolean to `MenuItem` model + DB column |
-| P5.2 | Customer login tab as default on `/login` | ⏳ | `LoginPage.jsx`: change `useState('staff')` → `useState('otp')` so customer OTP is the first tab |
-| P5.3 | Mobile status bar color (PWA theme-color) | ⏳ | Add `<meta name="theme-color" content="#1a1a1a">` to `index.html`; update `manifest.json` theme_color |
-| P5.4 | Rename coffee & cold coffee images | ⏳ | Update image filenames in `public/assets/menu/` + seed data `image_url` |
-| P5.5 | Rename strawberry shake image → banana shake | ⏳ | Same as above |
-| P5.6 | Rename chicken tikka image → chicken 65 | ⏳ | Same as above |
+| P5.1 | Veg / Non-veg icon on every menu item card | ✅ | `is_veg` boolean on `MenuItem` model; 🟢/🔴 badge on `MenuItemCard.jsx` + admin row + edit modal; seed.py tags all 34 items |
+| P5.2 | Customer login tab as default on `/login` | ✅ | `LoginPage.jsx`: `useState('otp')` — customer OTP is the first tab |
+| P5.3 | Mobile status bar color (PWA theme-color) | ✅ | Already set: `#e11d2e` in `index.html` + `manifest.json` |
+| P5.4 | Gallery images fix (edit modal) | ✅ | `GALLERY_FILES` + `itemImage()` updated to use actual kebab-case filenames |
+| P5.5 | Toggle switch for stock/unavailable | ✅ | `MenuRow` toggle switch replaces old button; better error handling |
+| P5.6 | Image renames (coffee, strawberry→banana, tikka→65) | ✅ | Files already correctly named in `public/assets/menu/` |
 
-### 6.2 Combo Packs (1 day)
+### 6.2 Combo Packs ✅ COMPLETE
 
 | ID | Deliverable | Status | Notes |
 |----|-------------|--------|-------|
-| P5.7 | `ComboPack` model (name, items, combo price, savings label) | ⏳ | New DB table; admin CRUD for combos |
-| P5.8 | Combo packs displayed on menu page | ⏳ | New "Combo Packs" section on `MenuPage.jsx` with bundled pricing |
-| P5.9 | Combo pack ordering (backend computes total from member items) | ⏳ | Server validates combo items exist + prices, snapshots at checkout |
+| P5.7 | `ComboPack` model (name, items, combo price, savings label) | ✅ | `ComboPack` + `ComboPackItem` models, admin CRUD endpoints |
+| P5.8 | Combo packs displayed on menu page | ✅ | `ComboPackCard.jsx` + `MenuPage.jsx` section |
+| P5.9 | Combo pack ordering (backend computes total from member items) | ✅ | Each item added to cart individually; server validates at checkout |
 
 ### 6.3 Customer Saved Addresses (1 day)
 
@@ -355,6 +355,7 @@ Priority order — quick wins first, then bigger features.
 | GET | /categories | public | ✅ |
 | GET | /items | public | ✅ |
 | GET | /items/:id | public | ✅ |
+| GET | /combo-packs | public | ✅ |
 
 ### 8.3 Orders — `/api/orders`
 | Method | Path | Access | Test |
@@ -390,6 +391,8 @@ Priority order — quick wins first, then bigger features.
 | PATCH | /staff/:id | manager | ✅ |
 | GET | /offers | manager | ✅ |
 | POST/PUT/DELETE | /offers[/:id] | manager | ✅ |
+| GET/POST | /combo-packs | manager | ✅ |
+| PUT/DELETE | /combo-packs/:id | manager | ✅ |
 | GET | /analytics | manager | 🟡 |
 | GET | /broadcast/vars | manager | ✅ |
 | POST | /broadcast | manager | ✅ |
@@ -448,19 +451,19 @@ work can be prioritized by user demand.
 
 ---
 
-## 11. Quick Stats (as of 2026-08-28)
+## 11. Quick Stats (as of 2026-08-31)
 
 | Metric | Value |
 |--------|-------|
-| Backend Python files | 35 (incl. `app/utils/{phone,ratelimit,sentry,logging_config}.py`) |
-| Backend lines of code (excl. venv) | ~3 700 |
+| Backend Python files | 36 (incl. `app/models/combo_pack.py`) |
+| Backend lines of code (excl. venv) | ~3 800 |
 | Frontend JSX files | 25 |
-| Frontend JS files | 3 new (`usePolling`, `useCountdown`, `index`) |
-| Frontend lines of code (excl. node_modules) | ~3 500 |
-| DB models | 10 |
+| Frontend JS files | 3 (`usePolling`, `useCountdown`, `index`) |
+| Frontend lines of code (excl. node_modules) | ~3 600 |
+| DB models | 13 (added `ComboPack` + `ComboPackItem`) |
 | API endpoints | 50+ |
 | Background processes | 2 (worker, scheduler) |
 | Docker services | 3 (db, backend, frontend) |
-| Test files | 10 pytest modules + 2 legacy scripts (39 unit + 38 integration + 1 e2e + 1 logging + 1 request-logging = 79 tests, 18.4 s) |
-| Documentation files | 7 (README, PLAN, PRD, ARCHITECTURE, RULES, PHASE, DESIGN) + 1 (MEMORY) + 2 new (tests/README.md, migrations/notes.md) |
+| Test files | 79 tests (39 unit + 38 integration + 1 e2e + 1 logging), 14 s |
+| Documentation files | 7 in `docs/` + README.md + tests/README.md + migrations/notes.md |
 

@@ -429,16 +429,17 @@ Dev mode: `docker compose up db` for database only; run Flask + Vite locally wit
 
 ## 9. FUTURE ENHANCEMENTS (v3.0+)
 
-### 9.1 Quick Wins (Phase 5.1)
-- [ ] Veg / Non-veg icon on every menu item card (`is_veg` column on `menu_items`)
-- [ ] Customer login tab as default on `/login` page
-- [ ] Mobile status bar theme-color meta tag
-- [ ] Rename image assets: coffee & cold coffee, strawberry shake → banana shake, chicken tikka → chicken 65
+### 9.1 Quick Wins (Phase 5.1) ✅ COMPLETE
+- [x] Veg / Non-veg icon on every menu item card (`is_veg` column on `menu_items`)
+- [x] Customer login tab as default on `/login` page
+- [x] Mobile status bar theme-color meta tag (already set: `#e11d2e`)
+- [x] Gallery images fix (actual kebab-case filenames)
+- [x] Toggle switch for stock/unavailable in admin menu
 
-### 9.2 Combo Packs (Phase 5.2)
-- [ ] ComboPack model (bundled items at discounted price)
-- [ ] Admin CRUD for combo packs
-- [ ] Combo section on menu page + server-side combo validation at checkout
+### 9.2 Combo Packs (Phase 5.2) ✅ COMPLETE
+- [x] ComboPack model (bundled items at discounted price)
+- [x] Admin CRUD for combo packs
+- [x] Combo section on menu page + server-side combo validation at checkout
 
 ### 9.3 Customer Addresses + Maps (Phase 5.3)
 - [ ] Saved delivery addresses (Address model, max 5 per user)

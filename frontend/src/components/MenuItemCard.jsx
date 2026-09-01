@@ -36,6 +36,21 @@ export default function MenuItemCard({ item, onAdd, compact = false }) {
           className="h-full w-full object-contain p-2"
           onError={(e) => { e.currentTarget.src = '/assets/menu/placeholder.png' }}
         />
+        {/* Veg / Non-veg badge — top-left corner */}
+        <span
+          className={`absolute left-2 top-2 flex h-5 w-5 items-center justify-center rounded-sm border-2 shadow-sm ${
+            item.is_veg !== false
+              ? 'border-green-600 bg-white'
+              : 'border-red-600 bg-white'
+          }`}
+          title={item.is_veg !== false ? 'Veg' : 'Non-veg'}
+        >
+          <span
+            className={`h-2.5 w-2.5 rounded-full ${
+              item.is_veg !== false ? 'bg-green-600' : 'bg-red-600'
+            }`}
+          />
+        </span>
         {soldOut && (
           <span className="absolute right-2 top-2 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow">
             Sold out

@@ -20,6 +20,7 @@ import ManageOffersPage from './pages/admin/ManageOffersPage'
 import AnalyticsPage from './pages/admin/AnalyticsPage'
 import MarketingPage from './pages/admin/MarketingPage'
 import SettingsPage from './pages/admin/SettingsPage'
+import ManageComboPacksPage from './pages/admin/ManageComboPacksPage'
 
 import KitchenDisplayPage from './pages/kitchen/KitchenDisplayPage'
 import DeliveryPage from './pages/delivery/DeliveryPage'
@@ -126,6 +127,14 @@ export default function App() {
           element={
             <ProtectedRoute roles={['manager']}>
               <MarketingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/combo-packs"
+          element={
+            <ProtectedRoute roles={['manager']}>
+              <ManageComboPacksPage />
             </ProtectedRoute>
           }
         />

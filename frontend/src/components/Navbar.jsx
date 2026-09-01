@@ -11,6 +11,7 @@ const STAFF_LINKS = {
     { to: '/admin/orders', label: 'Orders' },
     { to: '/admin/menu', label: 'Menu' },
     { to: '/admin/offers', label: 'Offers' },
+    { to: '/admin/combo-packs', label: 'Combos' },
     { to: '/admin/marketing', label: 'Marketing' },
     { to: '/admin/analytics', label: 'Analytics' },
     { to: '/admin/staff', label: 'Staff' },
