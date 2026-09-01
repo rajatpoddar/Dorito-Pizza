@@ -17,7 +17,7 @@
  * upstream; our /api/geocode/reverse proxy also caches by lat/lng.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import api, { errMessage } from '../api/client'
@@ -57,6 +57,21 @@ function ClickCapture({ onPick }) {
 }
 
 /**
+ * Recenter — invisible child of <MapContainer> that programmatically
+ * pans/zooms the map when the parent gives it new coords. Used after
+ * "Use my current location" succeeds, so the customer actually sees
+ * the new pin in context (not just the marker re-render).
+ */
+function Recenter({ center, zoom }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!center || !Number.isFinite(center[0]) || !Number.isFinite(center[1])) return
+    map.flyTo(center, zoom ?? map.getZoom(), { duration: 0.8 })
+  }, [center, zoom, map])
+  return null
+}
+
+/**
  * @param {object}  props
  * @param {{lat:number|null, lng:number|null}} [props.value]
  *        Current pin location (controlled). Null = no pin yet.
@@ -89,6 +104,10 @@ export default function AddressPicker({ value, onChange, onAddress, zoom = 16, h
   )
   const [resolving, setResolving] = useState(false)
   const [resolveError, setResolveError] = useState('')
+  // --- geolocation (Phase 5.3b — "Use my current location" button) ---
+  const [locating, setLocating] = useState(false)
+  const [locateError, setLocateError] = useState('')
+  const [recenterTo, setRecenterTo] = useState(null)
   const debounceRef = useRef(null)
   const onAddressRef = useRef(onAddress)
   const onChangeRef = useRef(onChange)
@@ -149,11 +168,59 @@ export default function AddressPicker({ value, onChange, onAddress, zoom = 16, h
     }, 600)
   }, [])
 
+  /**
+   * "Use my current location" — request browser geolocation, drop the
+   * pin at the resulting lat/lng, and re-center the map so the customer
+   * actually sees where they are (GPS is often off by a few hundred m).
+   *
+   * Browser support: every modern browser. HTTPS required (localhost
+   * is treated as secure, so the dev runner is fine). When the API
+   * is missing or the user denies permission, we show a clear inline
+   * error and the customer can still type/drag the pin.
+   */
+  const useCurrentLocation = useCallback(() => {
+    setLocateError('')
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocateError('Is browser me location support nahi hai.')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          setLocateError('Location mil nahi paya. Pin drag karein.')
+          setLocating(false)
+          return
+        }
+        // Re-center the map first so the flyTo animation is smooth,
+        // then handlePick drops the pin + reverse-geocodes.
+        setRecenterTo([latitude, longitude])
+        handlePick(latitude, longitude)
+        setLocating(false)
+      },
+      (err) => {
+        // err.code: 1=PERMISSION_DENIED, 2=POSITION_UNAVAILABLE, 3=TIMEOUT
+        const messages = {
+          1: 'Location permission denied. Pin drag karein ya address type karein.',
+          2: 'Location abhi available nahi hai (GPS off?). Pin drag karein.',
+          3: 'Location request timeout. Phir try karein ya pin drag karein.',
+        }
+        setLocateError(messages[err.code] || 'Location error. Pin drag karein.')
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    )
+  }, [handlePick])
+
   const pinIcon = useMemo(buildPinIcon, [])
 
   return (
     <div className="space-y-2">
-      <div className="overflow-hidden rounded-xl border border-neutral-300" style={{ height }}>
+      <div
+        className="relative overflow-hidden rounded-xl border border-neutral-300"
+        style={{ height }}
+      >
         <MapContainer
           center={initialCenter}
           zoom={zoom}
@@ -166,6 +233,7 @@ export default function AddressPicker({ value, onChange, onAddress, zoom = 16, h
             maxZoom={19}
           />
           <ClickCapture onPick={handlePick} />
+          <Recenter center={recenterTo} zoom={17} />
           {position && (
             <Marker
               position={position}
@@ -181,16 +249,35 @@ export default function AddressPicker({ value, onChange, onAddress, zoom = 16, h
           )}
         </MapContainer>
       </div>
-      <p className="flex items-center justify-between text-xs text-neutral-500">
-        <span>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <button
+          type="button"
+          onClick={useCurrentLocation}
+          disabled={locating}
+          className="inline-flex items-center gap-1.5 rounded-full border border-brand-red bg-red-50 px-3 py-1.5 font-semibold text-brand-red hover:bg-red-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {locating ? (
+            <>
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand-red border-t-transparent" />
+              <span>Location dhund raha hai…</span>
+            </>
+          ) : (
+            <>
+              <span>📍</span>
+              <span>Use my current location</span>
+            </>
+          )}
+        </button>
+        <span className="text-neutral-500">
           {position
             ? `📍 ${position[0].toFixed(5)}, ${position[1].toFixed(5)}`
-            : '📍 Pin tap ya drag karein — address auto-fill ho jayega.'}
+            : '— ya pin tap / drag karein'}
         </span>
-        <span aria-live="polite">
-          {resolving && '⏳ address lookup…'}
-          {resolveError && <span className="text-red-600">⚠️ {resolveError}</span>}
-        </span>
+      </div>
+      <p className="text-xs" aria-live="polite">
+        {resolving && <span className="text-neutral-500">⏳ address lookup…</span>}
+        {resolveError && <span className="text-red-600">⚠️ {resolveError}</span>}
+        {locateError && <span className="text-red-600">⚠️ {locateError}</span>}
       </p>
     </div>
   )

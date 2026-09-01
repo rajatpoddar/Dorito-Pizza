@@ -278,3 +278,83 @@ class TestOrderDeliveryLatLng:
         target = next(o for o in orders if o["customer_name"] == "Map Customer")
         assert target["delivery_lat"] == 24.42
         assert target["delivery_lng"] == 86.71
+
+
+# ===================== SSL retry (Mac / Python 3.12) =====================
+
+
+class TestGeocodeSslFallback:
+    """When `certifi`/system trust fails, retry once with unverified ctx.
+
+    The Mac + python.org 3.12 default install ships without the curated
+    CA bundle, so `urllib.request.urlopen()` against an https URL fails
+    with `SSLCertVerificationError`. The route transparently retries
+    with an unverified SSL context (the only data fetched is a public
+    address string).
+    """
+
+    def test_ssl_verify_error_triggers_unverified_retry(self, client):
+        import ssl
+        import urllib.error
+
+        fake_payload = {
+            "display_name": "After SSL fallback, somewhere",
+            "address": {"village": "Palojori"},
+        }
+        body_bytes = json.dumps(fake_payload).encode("utf-8")
+        call_count = {"n": 0}
+
+        def fake_urlopen(req, timeout=5, context=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                # First attempt: SSL verify failure wrapped in URLError
+                raise urllib.error.URLError(
+                    ssl.SSLCertVerificationError(
+                        "certificate verify failed: unable to get local issuer certificate"
+                    )
+                )
+            # Second attempt (unverified): success
+
+            class _Resp:
+                def __init__(self, body):
+                    self._body = body
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *a):
+                    return False
+
+                def read(self):
+                    return self._body
+
+            return _Resp(body_bytes)
+
+        with patch("app.routes.geocode.urllib.request.urlopen", side_effect=fake_urlopen):
+            r = client.get("/api/geocode/reverse?lat=24.4&lng=86.7")
+
+        assert r.status_code == 200, r.get_json()
+        assert call_count["n"] == 2  # verified → unverified
+        assert r.get_json()["display_name"].startswith("After SSL fallback")
+
+    def test_non_ssl_urlerror_still_returns_502(self, client):
+        """A non-SSL URLError (e.g. DNS failure) does NOT trigger retry."""
+        import urllib.error
+
+        with patch("app.routes.geocode.urllib.request.urlopen") as mocked:
+            mocked.side_effect = urllib.error.URLError("Name or service not known")
+            r = client.get("/api/geocode/reverse?lat=24.4&lng=86.7")
+        assert r.status_code == 502
+        assert "unavailable" in r.get_json()["error"].lower()
+
+    def test_ssl_retry_also_fails_returns_502(self, client):
+        """If even the unverified retry fails, surface a 502."""
+        import ssl
+        import urllib.error
+
+        with patch("app.routes.geocode.urllib.request.urlopen") as mocked:
+            mocked.side_effect = urllib.error.URLError(
+                ssl.SSLCertVerificationError("still broken")
+            )
+            r = client.get("/api/geocode/reverse?lat=24.4&lng=86.7")
+        assert r.status_code == 502

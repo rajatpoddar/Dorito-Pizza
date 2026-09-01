@@ -16,12 +16,24 @@ Nominatim service rather than letting the browser hit it directly:
 Endpoint:
     GET /api/geocode/reverse?lat=24.4&lng=86.7
     -> { lat, lng, display_name, address: {road, suburb, ...} }
+
+SSL notes (Mac / Python 3.12 specific):
+    Python 3.12 on macOS (the official python.org installer, NOT brew)
+    ships without the curated CA bundle by default. Running
+    `urllib.request.urlopen()` against an https:// URL then fails with
+    `ssl.SSLCertVerificationError: unable to get local issuer certificate`.
+    We use `certifi`'s CA bundle (transitive dep of Flask) to build a
+    proper SSL context. As a defensive fallback for the rare case where
+    even `certifi` is missing or stale (no `pip install certifi` ever
+    ran), we retry once with an unverified context — the only data we
+    fetch is a public address string, so no secrets are at risk.
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -66,6 +78,24 @@ def _throttle() -> None:
     if wait > 0:
         time.sleep(wait)
     _LAST_REQUEST_AT = time.monotonic()
+
+
+def _build_ssl_context() -> ssl.SSLContext:
+    """Build an SSL context that works on every reasonable Python install.
+
+    Preferred path: `certifi`'s CA bundle (curated, kept up to date by
+    pip). `certifi` is a transitive dep of Flask so it's almost always
+    present. Fallback: the system default trust store. If even that
+    fails (rare Mac + python.org install), the caller will catch the
+    SSL error and retry with an unverified context.
+    """
+    try:
+        import certifi  # type: ignore
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:  # noqa: BLE001 — certifi may be missing/stale
+        log.warning("certifi_missing_fallback_to_system_trust")
+        return ssl.create_default_context()
 
 
 @geocode_bp.get("/reverse")
@@ -125,8 +155,14 @@ def reverse():
         },
     )
 
+    # Try the proper CA-verified context first. If that fails on the
+    # classic Mac + python.org SSL bug (no `Install Certificates.command`
+    # run), retry with an unverified context so the customer-facing
+    # feature still works. We only fetch a public address string, so
+    # there's no secret at risk of MITM.
     try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        ctx = _build_ssl_context()
+        with urllib.request.urlopen(req, timeout=5, context=ctx) as resp:
             raw = resp.read().decode("utf-8")
             data = json.loads(raw)
     except urllib.error.HTTPError as e:
@@ -145,18 +181,56 @@ def reverse():
             503 if e.code == 429 else 502,
         )
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
-        log.warning(
-            "nominatim_unreachable",
-            exc_info=True,
-            extra={"lat": lat, "lng": lng},
+        # If it's an SSL verification failure, retry once with an
+        # unverified context. Anything else (DNS, connection refused,
+        # malformed JSON) bubbles up to the 502.
+        reason = getattr(e, "reason", None)
+        is_ssl_verify = (
+            isinstance(reason, ssl.SSLCertVerificationError)
+            or "CERTIFICATE_VERIFY_FAILED" in str(e)
         )
-        return (
-            jsonify(
-                error="Geocoding service unavailable. Please type the address manually.",
-                detail=type(e).__name__,
-            ),
-            502,
-        )
+        if is_ssl_verify:
+            try:
+                log.warning(
+                    "nominatim_ssl_verify_failed_retrying_unverified",
+                    extra={"lat": lat, "lng": lng},
+                )
+                ctx_unsafe = ssl._create_unverified_context()  # noqa: SLF001
+                with urllib.request.urlopen(req, timeout=5, context=ctx_unsafe) as resp:
+                    raw = resp.read().decode("utf-8")
+                    data = json.loads(raw)
+            except Exception as retry_err:  # noqa: BLE001
+                log.warning(
+                    "nominatim_unreachable_after_ssl_retry",
+                    exc_info=True,
+                    extra={"lat": lat, "lng": lng},
+                )
+                return (
+                    jsonify(
+                        error=(
+                            "Geocoding service unreachable. "
+                            "Please type the address manually."
+                        ),
+                        detail=type(retry_err).__name__,
+                    ),
+                    502,
+                )
+        else:
+            log.warning(
+                "nominatim_unreachable",
+                exc_info=True,
+                extra={"lat": lat, "lng": lng},
+            )
+            return (
+                jsonify(
+                    error=(
+                        "Geocoding service unavailable. "
+                        "Please type the address manually."
+                    ),
+                    detail=type(e).__name__,
+                ),
+                502,
+            )
 
     display_name = data.get("display_name") or ""
     address = data.get("address") or {}
