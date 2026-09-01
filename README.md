@@ -13,6 +13,8 @@ Four apps in one system:
 
 **Stack:** Flask 3 + SQLAlchemy + PostgreSQL + JWT · React 18 (Vite) + Tailwind CSS · Docker Compose.
 
+**Maps:** Leaflet + OpenStreetMap for the customer address picker + delivery pin on the manager order detail (no API key, no paid tile provider — see `docs/PHASE.md` §6.4).
+
 ---
 
 ## 🚀 Quick start — Option A: without Docker (easiest)
@@ -186,6 +188,8 @@ Base URL `/api` — all responses JSON. Auth via `Authorization: Bearer <token>`
 |  | `PUT /addresses/:id` | JWT customer | edit (owner-only) |
 |  | `DELETE /addresses/:id` | JWT customer | delete (auto-promotes next default) |
 |  | `PATCH /addresses/:id/default` | JWT customer | set default |
+| **Maps (P5.13)** | `GET /geocode/reverse?lat&lng` | public | reverse-geocode → address (Nominatim proxy, 1 RPS, 1 h cache) |
+| | `POST /orders` accepts `delivery_lat` / `delivery_lng` | — | when the customer drops a pin, the order row stores the coords |
 | **Notifications** | `GET /notifications` | JWT | unread + recent |
 |  | `POST /notifications/read` | JWT | mark one/all read |
 | **Settings (public)** | `GET /settings` | public | shop info, delivery charge, open/closed |

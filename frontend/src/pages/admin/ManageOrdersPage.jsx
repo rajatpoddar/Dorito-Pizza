@@ -6,10 +6,14 @@ import { fmtINR, fmtTime, STATUS_LABELS } from '../../constants'
 
 // ── notification sounds from /public/sounds/ ──
 const NEW_ORDER_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/01_new_order.mp3') : null
-const ACCEPTED_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/02_order_accepted.mp3') : null
-const REJECTED_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/03_order_rejected.mp3') : null
-const READY_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/07_driver_pickup_ready.mp3') : null
-const DELIVERED_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/09_order_delivered.mp3') : null
+const ACCEPTED_AUDIO =
+  typeof Audio !== 'undefined' ? new Audio('/sounds/02_order_accepted.mp3') : null
+const REJECTED_AUDIO =
+  typeof Audio !== 'undefined' ? new Audio('/sounds/03_order_rejected.mp3') : null
+const READY_AUDIO =
+  typeof Audio !== 'undefined' ? new Audio('/sounds/07_driver_pickup_ready.mp3') : null
+const DELIVERED_AUDIO =
+  typeof Audio !== 'undefined' ? new Audio('/sounds/09_order_delivered.mp3') : null
 
 function playNewOrderSound() {
   if (NEW_ORDER_AUDIO) {
@@ -72,7 +76,7 @@ export default function ManageOrdersPage() {
       .get('/admin/orders', { params: statusFilter ? { status: statusFilter } : {} })
       .then((r) => {
         const newOrders = r.data.orders
-        const newIds = new Set(newOrders.map(o => o.id))
+        const newIds = new Set(newOrders.map((o) => o.id))
         const newStatusMap = new Map(newOrders.map((o) => [o.id, o.status]))
 
         // Detect transitions since last poll (skip on first load).
@@ -168,7 +172,10 @@ export default function ManageOrdersPage() {
   }, [statusFilter])
 
   useEffect(() => {
-    api.get('/admin/staff?role=delivery').then((r) => setAgents(r.data.staff)).catch(() => {})
+    api
+      .get('/admin/staff?role=delivery')
+      .then((r) => setAgents(r.data.staff))
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -238,7 +245,9 @@ export default function ManageOrdersPage() {
         >
           <option value="">All statuses</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
+            <option key={k} value={k}>
+              {v}
+            </option>
           ))}
         </select>
       </div>
@@ -255,7 +264,8 @@ export default function ManageOrdersPage() {
           <div className="card mx-4 w-full max-w-md p-6">
             <h2 className="mb-4 font-display text-lg font-bold">Reject Order</h2>
             <p className="mb-2 text-sm text-neutral-600">
-              Are you sure you want to reject order #{orders.find(o => o.id === rejectModal)?.order_number}?
+              Are you sure you want to reject order #
+              {orders.find((o) => o.id === rejectModal)?.order_number}?
             </p>
             <textarea
               value={rejectReason}
@@ -313,8 +323,36 @@ export default function ManageOrdersPage() {
             </p>
             <p className="mt-1 text-xs text-neutral-500">
               👤 {o.customer_name} · 📞 {o.customer_phone}
-              <br />📍 {o.delivery_address}
+              <br />
+              📍 {o.delivery_address}
             </p>
+
+            {/* Phase 5.3 — P5.14: delivery location pin map.
+                OpenStreetMap embeds are zero-cost and don't need an API key.
+                We use a static-image-style bbox embed (the open OSM "embed"
+                iframe); clicking it opens the full map view for directions. */}
+            {o.delivery_lat != null && o.delivery_lng != null && (
+              <div className="mt-2 overflow-hidden rounded-lg border border-neutral-200">
+                <iframe
+                  title={`Map for ${o.order_number}`}
+                  className="block h-40 w-full"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${
+                    o.delivery_lng - 0.005
+                  }%2C${o.delivery_lat - 0.003}%2C${o.delivery_lng + 0.005}%2C${
+                    o.delivery_lat + 0.003
+                  }&layer=mapnik&marker=${o.delivery_lat}%2C${o.delivery_lng}`}
+                  loading="lazy"
+                />
+                <a
+                  href={`https://www.openstreetmap.org/?mlat=${o.delivery_lat}&mlon=${o.delivery_lng}#map=18/${o.delivery_lat}/${o.delivery_lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block bg-neutral-50 px-2 py-1 text-center text-[11px] font-semibold text-brand-red hover:bg-red-50"
+                >
+                  🗺️ Full map / directions kholein ↗
+                </a>
+              </div>
+            )}
 
             {o.reject_reason && (
               <p className="mt-2 text-xs text-red-600">Reason: {o.reject_reason}</p>
@@ -343,28 +381,31 @@ export default function ManageOrdersPage() {
                     </button>
                   </>
                 )}
-                {o.status !== 'pending' && o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected' && (
-                  <>
-                    <select
-                      value={o.delivery_agent?.id || ''}
-                      onChange={(e) => assign(o.id, e.target.value)}
-                      className="input !w-auto !py-1.5 text-xs"
-                    >
-                      <option value="">🛵 Assign agent…</option>
-                      {agents.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name} ({a.phone})
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => cancel(o.id)}
-                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
+                {o.status !== 'pending' &&
+                  o.status !== 'delivered' &&
+                  o.status !== 'cancelled' &&
+                  o.status !== 'rejected' && (
+                    <>
+                      <select
+                        value={o.delivery_agent?.id || ''}
+                        onChange={(e) => assign(o.id, e.target.value)}
+                        className="input !w-auto !py-1.5 text-xs"
+                      >
+                        <option value="">🛵 Assign agent…</option>
+                        {agents.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} ({a.phone})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => cancel(o.id)}
+                        className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
               </div>
             </div>
           </div>

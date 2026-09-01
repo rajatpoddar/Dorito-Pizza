@@ -41,6 +41,20 @@ def create_order():
     address = (data.get("delivery_address") or "").strip()
     payment_mode = data.get("payment_mode") or Order.PAYMENT_COD
 
+    # ---- map pin (Phase 5.3 — P5.13) ----
+    # Optional; populated by the Leaflet address picker. We accept floats
+    # but never require them — guests / older clients can still place orders.
+    try:
+        delivery_lat = data.get("delivery_lat")
+        delivery_lat = float(delivery_lat) if delivery_lat not in (None, "") else None
+    except (TypeError, ValueError):
+        delivery_lat = None
+    try:
+        delivery_lng = data.get("delivery_lng")
+        delivery_lng = float(delivery_lng) if delivery_lng not in (None, "") else None
+    except (TypeError, ValueError):
+        delivery_lng = None
+
     if not items:
         return jsonify(error="Your cart is empty"), 400
     if not name:
@@ -133,6 +147,8 @@ def create_order():
         delivery_charge=round(delivery_charge, 2),
         offer_id=offer.id if offer else None,
         offer_code=offer_code,
+        delivery_lat=delivery_lat,
+        delivery_lng=delivery_lng,
         delivery_otp=f"{secrets.randbelow(10000):04d}",
     )
     order.items = order_items

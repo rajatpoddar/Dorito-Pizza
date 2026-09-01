@@ -6,7 +6,7 @@
 
 **Legend:** ✅ done · 🟡 in progress · ⏳ planned · ❌ blocked · 🚫 dropped
 
-**Last updated:** 2026-09-01 (Phase 5.6 complete: OTP profile update + notification sounds + manager accept/reject)
+**Last updated:** 2026-09-01 (Phase 5.3b complete: maps integration — Leaflet picker + admin delivery pin)
 
 ---
 
@@ -292,12 +292,24 @@ Priority order — quick wins first, then bigger features.
 - `CheckoutPage.jsx`: saved address quick-select above the address textarea
 - 14 integration tests covering CRUD, max limit, default promotion, cross-user isolation, auth
 
-### 6.4 Maps Integration (1–2 days)
+### 6.4 Maps Integration (1–2 days) ✅ COMPLETE
 
 | ID | Deliverable | Status | Notes |
 |----|-------------|--------|-------|
-| P5.13 | Map-based address picker (Leaflet + OpenStreetMap — free, no API key) | ⏳ | Drop-in map component on checkout; pin drag → reverse geocode → fill address field |
-| P5.14 | Show delivery location on admin order detail | ⏳ | Static map thumbnail in `ManageOrdersPage.jsx` |
+| P5.13 | Map-based address picker (Leaflet + OpenStreetMap — free, no API key) | ✅ | `<AddressPicker>` component; pin drag/click → `/api/geocode/reverse` → autofill address textarea + lat/lng; integrated into `CheckoutPage` (toggle) + `AccountPage` (add/edit modal) |
+| P5.14 | Show delivery location on admin order detail | ✅ | OSM iframe embed (no API key) on each order card in `ManageOrdersPage.jsx`; opens full OSM for directions on tap |
+
+**Changes:**
+- New `Order.delivery_lat` / `delivery_lng` columns (auto-heal on existing DBs via `schema_helpers.py`).
+- New `Address.lat` / `Address.lng` columns (already existed from P5.10 — now used).
+- `POST /api/orders` accepts optional `delivery_lat` / `delivery_lng` (coerced to `None` on garbage values for safety).
+- New `GET /api/geocode/reverse?lat&lng` proxy endpoint with throttling (1 RPS, respects Nominatim usage policy) + 1 h in-process cache.
+- New `<AddressPicker>` component (Leaflet + OSM tiles, custom DivIcon pin, debounced reverse-geocode).
+- `CheckoutPage.jsx`: lazy map toggle under the address textarea; saved-address quick-select syncs the pin.
+- `AccountPage.jsx`: map toggle in the add/edit address form; saves `lat`/`lng` on the address.
+- `ManageOrdersPage.jsx`: OSM iframe embed + "Open full map" link per order (only when lat/lng present).
+- 10 new integration tests covering geocode input validation, caching, error mapping, and order lat/lng round-trip (admin + customer).
+- `frontend/package.json`: added `leaflet@^1.9.4` + `react-leaflet@^4.2.1`.
 
 ### 6.5 Legal Pages + Razorpay Prep (1–2 days)
 
@@ -535,8 +547,7 @@ If you have one week of focused time, work in this order to maximize value:
 1. **B3** Marketing winback boundary (½ day) — the one remaining open bug.
 2. **P5.26** Daily `pg_dump` cron + restore runbook (½ day) — needed
    before any real customer goes live (was P4.8).
-3. **P5.13 + P5.14** Map-based address picker + delivery pin (1–2 days) — the
-   last big UX gap on the customer side; Leaflet + OpenStreetMap = free.
+3. ~~**P5.13 + P5.14** Map-based address picker + delivery pin (1–2 days)~~ ✅ Done
 4. **P5.19** Razorpay UPI (2 days) — the highest-impact v3.0 feature for
    a real shop (the current UPI option shows a manual QR code only).
 5. **P5.27** Android APK via Capacitor (2 days) — once UPI lands, the
@@ -552,16 +563,16 @@ prioritized by user demand.
 
 | Metric | Value |
 |--------|-------|
-| Backend Python files | 41 (added `app/models/address.py` + `app/models/combo_pack.py`) |
-| Backend lines of code (excl. venv) | ~4 700 |
-| Frontend JSX files | 28 (added `ComboPackCard.jsx`) |
+| Backend Python files | 42 (added `app/routes/geocode.py` for the Maps proxy) |
+| Backend lines of code (excl. venv) | ~4 900 |
+| Frontend JSX files | 29 (added `AddressPicker.jsx`) |
 | Frontend JS files | 3 (`usePolling`, `useCountdown`, `index`) |
-| Frontend lines of code (excl. node_modules) | ~4 400 |
+| Frontend lines of code (excl. node_modules) | ~4 600 |
 | DB models | 14 (added `ComboPack`, `ComboPackItem`, `Address`) |
-| API endpoints | **64** across 11 blueprints (added /admin/dashboard/recent-activity) |
+| API endpoints | **65** across 12 blueprints (added `/api/geocode/reverse`) |
 | Background processes | 2 (worker, scheduler) |
 | Docker services | 3 (db, backend, frontend) |
-| Test functions | **99** (unit + integration + e2e), ~30 s on CI |
+| Test functions | **109** (unit + integration + e2e), ~30 s on CI |
 | Notification sounds | 9 (`/assets/sounds/01..09_*.mp3`) |
 | Documentation files | 7 in `docs/` + README.md + tests/README.md + migrations/notes.md |
 

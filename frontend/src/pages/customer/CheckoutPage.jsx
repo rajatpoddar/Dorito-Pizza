@@ -6,6 +6,7 @@ import { useCart } from '../../context/CartContext'
 import { useShopStatus } from '../../context/ShopContext'
 import { useCountdown } from '../../hooks'
 import { SHOP, SHOP_ADDRESS, fmtINR, itemImage } from '../../constants'
+import AddressPicker from '../../components/AddressPicker'
 
 export default function CheckoutPage() {
   const { items, total: cartSubtotal, clear } = useCart()
@@ -23,6 +24,13 @@ export default function CheckoutPage() {
   })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  // --- map pin (Phase 5.3 — P5.13) ---
+  const [pinLocation, setPinLocation] = useState(null)
+  // Toggles the address-picker map (collapsed by default to keep the
+  // page fast on first load; customers who just type their address
+  // never need the map).
+  const [showMap, setShowMap] = useState(false)
 
   // --- saved addresses ---
   const [addresses, setAddresses] = useState([])
@@ -49,13 +57,19 @@ export default function CheckoutPage() {
 
   // load active offers + shop settings + saved addresses
   useEffect(() => {
-    api.get('/offers').then((r) => setOffers(r.data.offers)).catch(() => {})
+    api
+      .get('/offers')
+      .then((r) => setOffers(r.data.offers))
+      .catch(() => {})
     api
       .get('/settings')
       .then((r) => setSettings(r.data.settings))
       .catch(() => {})
     if (user) {
-      api.get('/addresses').then((r) => setAddresses(r.data.addresses)).catch(() => {})
+      api
+        .get('/addresses')
+        .then((r) => setAddresses(r.data.addresses))
+        .catch(() => {})
     }
   }, [user])
 
@@ -95,18 +109,19 @@ export default function CheckoutPage() {
 
   // ---------- totals breakdown ----------
   const discount = offerPreview.ok ? offerPreview.discount : 0
-  const qualifiesFree = settings.free_delivery_above > 0 &&
-    cartSubtotal - discount >= settings.free_delivery_above
-  const deliveryCharge = qualifiesFree || !settings.delivery_charge
-    ? 0
-    : Number(settings.delivery_charge)
+  const qualifiesFree =
+    settings.free_delivery_above > 0 && cartSubtotal - discount >= settings.free_delivery_above
+  const deliveryCharge =
+    qualifiesFree || !settings.delivery_charge ? 0 : Number(settings.delivery_charge)
   const total = Math.max(0, cartSubtotal - discount + deliveryCharge)
 
   if (items.length === 0) {
     return (
       <main className="mx-auto max-w-2xl px-4 py-20 text-center">
         <h1 className="font-display text-2xl font-bold">Nothing to checkout</h1>
-        <Link to="/" className="btn-primary mt-6">Browse Menu</Link>
+        <Link to="/" className="btn-primary mt-6">
+          Browse Menu
+        </Link>
       </main>
     )
   }
@@ -141,9 +156,7 @@ export default function CheckoutPage() {
       // Warn early if backend says delivery is already failing — saves the
       // user from waiting 30s+ only to see "OTP nahi aaya".
       if (res.wa_status === 'failed' || res.wa_status === 'skipped') {
-        setOtpError(
-          'OTP bhej nahi pa rahe. Kuch minute me try karein, ya shop ko call karein.'
-        )
+        setOtpError('OTP bhej nahi pa rahe. Kuch minute me try karein, ya shop ko call karein.')
       }
       setOtpStep('verify')
       // Match backend OTP_RESEND_COOLDOWN (90s in config). UI just counts
@@ -189,6 +202,11 @@ export default function CheckoutPage() {
         ...form,
         offer_code: offerCode,
         items: items.map((i) => ({ menu_item_id: i.id, quantity: i.quantity, name: i.name })),
+      }
+      // Attach map pin (Phase 5.3) — only if a pin was actually dropped.
+      if (pinLocation && Number.isFinite(pinLocation.lat) && Number.isFinite(pinLocation.lng)) {
+        payload.delivery_lat = pinLocation.lat
+        payload.delivery_lng = pinLocation.lng
       }
       const res = await api.post('/orders', payload)
       clear()
@@ -244,16 +262,12 @@ export default function CheckoutPage() {
               }}
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-neutral-800">
-                {i.name}
-              </p>
+              <p className="truncate text-sm font-medium text-neutral-800">{i.name}</p>
               <p className="text-xs text-neutral-500">
                 {fmtINR(i.price)} × {i.quantity}
               </p>
             </div>
-            <span className="shrink-0 text-sm font-semibold">
-              {fmtINR(i.price * i.quantity)}
-            </span>
+            <span className="shrink-0 text-sm font-semibold">{fmtINR(i.price * i.quantity)}</span>
           </div>
         ))}
 
@@ -265,7 +279,9 @@ export default function CheckoutPage() {
           </div>
           {discount > 0 && (
             <div className="flex justify-between text-green-600">
-              <span>🎁 Offer {offerCode} ({offerPreview.label})</span>
+              <span>
+                🎁 Offer {offerCode} ({offerPreview.label})
+              </span>
               <span>− {fmtINR(discount)}</span>
             </div>
           )}
@@ -315,8 +331,8 @@ export default function CheckoutPage() {
               <div>
                 <h2 className="font-display text-lg font-bold">Verify OTP</h2>
                 <p className="mt-1 text-sm text-neutral-500">
-                  <b>{form.customer_phone}</b> par OTP bheja gaya hai.
-                  {' '}OTP daal ke order place karein.
+                  <b>{form.customer_phone}</b> par OTP bheja gaya hai. OTP daal ke order place
+                  karein.
                 </p>
               </div>
 
@@ -376,7 +392,10 @@ export default function CheckoutPage() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => { setOtpStep(null); setOtpError('') }}
+                  onClick={() => {
+                    setOtpStep(null)
+                    setOtpError('')
+                  }}
                   className="btn-secondary flex-1"
                 >
                   Cancel
@@ -441,7 +460,15 @@ export default function CheckoutPage() {
                   {addresses.map((a) => (
                     <label
                       key={a.id}
-                      onClick={() => setForm({ ...form, delivery_address: a.full_address })}
+                      onClick={() => {
+                        setForm({ ...form, delivery_address: a.full_address })
+                        // Sync the map pin to the saved address (P5.13) — if
+                        // the address was saved without coords we just clear
+                        // the pin; the map will reset on next user action.
+                        setPinLocation(
+                          a.lat != null && a.lng != null ? { lat: a.lat, lng: a.lng } : null,
+                        )
+                      }}
                       className={`flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm transition ${
                         form.delivery_address === a.full_address
                           ? 'border-brand-red bg-red-50'
@@ -449,11 +476,19 @@ export default function CheckoutPage() {
                       }`}
                     >
                       <span>
-                        {a.label === 'Home' ? '🏠' : a.label === 'Work' ? '💼' : a.label === 'Hostel' ? '🏨' : '📌'}
+                        {a.label === 'Home'
+                          ? '🏠'
+                          : a.label === 'Work'
+                            ? '💼'
+                            : a.label === 'Hostel'
+                              ? '🏨'
+                              : '📌'}
                       </span>
                       <div className="min-w-0 flex-1">
                         <span className="font-medium">{a.label}</span>
-                        <span className="ml-2 text-xs text-neutral-500 truncate">{a.full_address}</span>
+                        <span className="ml-2 text-xs text-neutral-500 truncate">
+                          {a.full_address}
+                        </span>
                       </div>
                       {a.is_default && (
                         <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
@@ -472,6 +507,35 @@ export default function CheckoutPage() {
                 onChange={(e) => setForm({ ...form, delivery_address: e.target.value })}
                 required
               />
+
+              {/* Map toggle (P5.13). The map is lazy — only the OpenStreetMap
+                  tile CSS / JS + ~20 JSX lines are pulled in when expanded.
+                  Drag the pin → reverse-geocode → address textarea fills. */}
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowMap((s) => !s)}
+                  className="text-xs font-semibold text-brand-red hover:underline"
+                >
+                  {showMap ? '🗺️ Map hide karein' : '📍 Map se pin karein (precise delivery)'}
+                </button>
+                {showMap && (
+                  <div className="mt-2">
+                    <AddressPicker
+                      value={pinLocation}
+                      onChange={setPinLocation}
+                      onAddress={(displayName) => {
+                        // Only auto-fill if the customer hasn't started
+                        // typing their own version of the address.
+                        setForm((prev) => ({
+                          ...prev,
+                          delivery_address: displayName,
+                        }))
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* offers */}
@@ -485,14 +549,23 @@ export default function CheckoutPage() {
                     value={offerCode}
                     onChange={(e) => setOfferCode(e.target.value.toUpperCase())}
                   />
-                  <button type="button" onClick={() => setOfferCode('')}
-                          className="btn-secondary !px-3 text-xs">✕</button>
+                  <button
+                    type="button"
+                    onClick={() => setOfferCode('')}
+                    className="btn-secondary !px-3 text-xs"
+                  >
+                    ✕
+                  </button>
                 </div>
                 {offers.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {offers.map((o) => (
-                      <button key={o.code} type="button" onClick={() => setOfferCode(o.code)}
-                              className="rounded-lg border border-dashed border-brand-gold bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100">
+                      <button
+                        key={o.code}
+                        type="button"
+                        onClick={() => setOfferCode(o.code)}
+                        className="rounded-lg border border-dashed border-brand-gold bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                      >
                         {o.title} · <b>{o.amount_label}</b>
                       </button>
                     ))}
@@ -521,7 +594,8 @@ export default function CheckoutPage() {
               </div>
               {form.payment_mode === 'upi' && (
                 <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  Pay to the shop UPI after confirming — delivery partner verifies payment on arrival.
+                  Pay to the shop UPI after confirming — delivery partner verifies payment on
+                  arrival.
                 </p>
               )}
             </div>
