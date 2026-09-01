@@ -12,9 +12,10 @@ from app.models.whatsapp_outbox import WhatsAppOutbox
 from app.models.marketing_log import MarketingLog
 from app.models.shop_settings import ShopSettings
 from app.models.combo_pack import ComboPack, ComboPackItem
+from app.models.address import Address
 
 __all__ = [
     "User", "Category", "MenuItem", "Order", "OrderItem",
     "OtpCode", "Offer", "Notification", "WhatsAppOutbox", "MarketingLog",
-    "ShopSettings", "ComboPack", "ComboPackItem",
+    "ShopSettings", "ComboPack", "ComboPackItem", "Address",
 ]

@@ -24,6 +24,9 @@ export default function CheckoutPage() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
+  // --- saved addresses ---
+  const [addresses, setAddresses] = useState([])
+
   // --- shop settings (delivery charge etc.) ---
   const [settings, setSettings] = useState({
     delivery_charge: 0,
@@ -44,14 +47,17 @@ export default function CheckoutPage() {
   // complete the order.
   const [devOtp, setDevOtp] = useState(null)
 
-  // load active offers + shop settings (delivery charge etc.)
+  // load active offers + shop settings + saved addresses
   useEffect(() => {
     api.get('/offers').then((r) => setOffers(r.data.offers)).catch(() => {})
     api
       .get('/settings')
       .then((r) => setSettings(r.data.settings))
       .catch(() => {})
-  }, [])
+    if (user) {
+      api.get('/addresses').then((r) => setAddresses(r.data.addresses)).catch(() => {})
+    }
+  }, [user])
 
   // ---------- live offer preview (so customer sees discount update before
   // tapping "Place Order"). Re-derives the same math the backend will use
@@ -430,6 +436,35 @@ export default function CheckoutPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Delivery Address</label>
+              {addresses.length > 0 && (
+                <div className="mb-2 space-y-1">
+                  {addresses.map((a) => (
+                    <label
+                      key={a.id}
+                      onClick={() => setForm({ ...form, delivery_address: a.full_address })}
+                      className={`flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm transition ${
+                        form.delivery_address === a.full_address
+                          ? 'border-brand-red bg-red-50'
+                          : 'border-neutral-200 hover:border-neutral-300'
+                      }`}
+                    >
+                      <span>
+                        {a.label === 'Home' ? '🏠' : a.label === 'Work' ? '💼' : a.label === 'Hostel' ? '🏨' : '📌'}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium">{a.label}</span>
+                        <span className="ml-2 text-xs text-neutral-500 truncate">{a.full_address}</span>
+                      </div>
+                      {a.is_default && (
+                        <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
+                          Default
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                  <p className="text-xs text-neutral-400">— or type a new address below —</p>
+                </div>
+              )}
               <textarea
                 className="input min-h-[90px]"
                 placeholder={`House / street / landmark — ${SHOP_ADDRESS}`}

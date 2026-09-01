@@ -442,8 +442,8 @@ Dev mode: `docker compose up db` for database only; run Flask + Vite locally wit
 - [x] Combo section on menu page + server-side combo validation at checkout
 
 ### 9.3 Customer Addresses + Maps (Phase 5.3)
-- [ ] Saved delivery addresses (Address model, max 5 per user)
-- [ ] Address CRUD API + UI on checkout + account page
+- [x] Saved delivery addresses (Address model, max 5 per user)
+- [x] Address CRUD API + UI on checkout + account page
 - [ ] Leaflet/OpenStreetMap pin-point address picker (free, no API key)
 - [ ] Show delivery location on admin order detail
 

@@ -6,7 +6,7 @@
 
 **Legend:** ✅ done · 🟡 in progress · ⏳ planned · ❌ blocked · 🚫 dropped
 
-**Last updated:** 2026-09-01 (Phase 5.6 complete: manager accept/reject flow with WhatsApp + in-app notifications)
+**Last updated:** 2026-09-01 (Phase 5.3 complete: customer saved addresses with CRUD API + checkout/account UI)
 
 ---
 
@@ -274,13 +274,23 @@ Priority order — quick wins first, then bigger features.
 | P5.8 | Combo packs displayed on menu page | ✅ | `ComboPackCard.jsx` + `MenuPage.jsx` section |
 | P5.9 | Combo pack ordering (backend computes total from member items) | ✅ | Each item added to cart individually; server validates at checkout |
 
-### 6.3 Customer Saved Addresses (1 day)
+### 6.3 Customer Saved Addresses (1 day) ✅ COMPLETE
 
 | ID | Deliverable | Status | Notes |
 |----|-------------|--------|-------|
-| P5.10 | `Address` model (user_id, label, full_address, lat, lng, is_default) | ⏳ | New DB table |
-| P5.11 | `GET/POST/PUT/DELETE /api/addresses` CRUD | ⏳ | Auth-protected, max 5 per user |
-| P5.12 | Address picker on checkout + account page | ⏳ | `CheckoutPage.jsx` shows saved addresses; `AccountPage.jsx` address management |
+| P5.10 | `Address` model (user_id, label, full_address, lat, lng, is_default) | ✅ | `models/address.py` — max 5 per user, auto-default on first create |
+| P5.11 | `GET/POST/PUT/DELETE /api/addresses` CRUD | ✅ | `routes/addresses.py` — auth-protected, owner-only update/delete, `PATCH /default` |
+| P5.12 | Address picker on checkout + account page | ✅ | `AccountPage.jsx` full CRUD UI; `CheckoutPage.jsx` one-tap address select |
+
+**Changes:**
+- New `Address` model: `user_id`, `label`, `full_address`, `lat`, `lng`, `is_default`, timestamps
+- `GET/POST /api/addresses`, `PUT/DELETE /api/addresses/:id`, `PATCH /api/addresses/:id/default`
+- Max 5 addresses per customer; first address auto-set as default
+- Delete default → promotes most recent remaining address
+- Owner-only access (404 if trying to access another user's address)
+- `AccountPage.jsx`: full address management section with add/edit/delete/set-default
+- `CheckoutPage.jsx`: saved address quick-select above the address textarea
+- 14 integration tests covering CRUD, max limit, default promotion, cross-user isolation, auth
 
 ### 6.4 Maps Integration (1–2 days)
 
