@@ -8,7 +8,7 @@ from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import func
 
 from app.extensions import db
-from app.models import Category, ComboPack, ComboPackItem, MenuItem, Offer, Order, OrderItem, User
+from app.models import Category, ComboPack, ComboPackItem, MenuItem, Notification, Offer, Order, OrderItem, User
 from app.services import notify as notify_svc
 from app.utils.decorators import roles_required
 
@@ -72,6 +72,44 @@ def top_items():
             {"item_name": r[0], "quantity": int(r[1]), "revenue": float(r[2])}
             for r in rows
         ]
+    )
+
+
+@admin_bp.get("/dashboard/recent-activity")
+@roles_required("manager")
+def recent_activity():
+    """Last 20 in-app notifications + last 10 outbox messages (one feed)."""
+    from app.models import WhatsAppOutbox
+
+    notifs = (
+        Notification.query
+        .order_by(Notification.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    msgs = (
+        WhatsAppOutbox.query
+        .order_by(WhatsAppOutbox.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    return jsonify(
+        notifications=[n.to_dict() for n in notifs],
+        messages=[
+            {
+                "id": m.id,
+                "phone": m.phone,
+                "kind": m.kind,
+                "status": m.status,
+                "order_id": m.order_id,
+                "error": m.error,
+                "attempts": m.attempts,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+                "sent_at": m.sent_at.isoformat() if m.sent_at else None,
+                "preview": m.message.split("\n", 1)[0][:80],
+            }
+            for m in msgs
+        ],
     )
 
 
@@ -155,9 +193,13 @@ def accept_order(order_id):
     wa_svc.queue_message(
         order.customer_phone,
         wa_svc.order_accepted_message(order),
-        kind=wa_svc.WhatsAppOutbox.KIND_ORDER_CONFIRMED,
+        kind=wa_svc.WhatsAppOutbox.KIND_ORDER_ACCEPTED,
         order_id=order.id,
     )
+    # Notify all kitchen staff so they hear a beep on the KDS
+    notify_svc.notify_role("cook", "New order 👨‍🍳",
+                           f"{order.order_number} accept ho gaya — prepare karein.",
+                           Notification.TYPE_ORDER, order.id)
     return jsonify(order=order.to_dict())
 
 
@@ -185,7 +227,7 @@ def reject_order(order_id):
     wa_svc.queue_message(
         order.customer_phone,
         wa_svc.order_rejected_message(order, reason),
-        kind=wa_svc.WhatsAppOutbox.KIND_ORDER_CONFIRMED,
+        kind=wa_svc.WhatsAppOutbox.KIND_ORDER_REJECTED,
         order_id=order.id,
     )
     return jsonify(order=order.to_dict())

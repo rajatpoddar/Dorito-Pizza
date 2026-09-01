@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useCart } from '../context/CartContext'
 import { useShopStatus } from '../context/ShopContext'
 import { HOME_BY_ROLE, ROLE_LABELS } from '../constants'
+import NotificationBell from './NotificationBell'
 
 const STAFF_LINKS = {
   manager: [
@@ -105,6 +106,7 @@ export default function Navbar() {
               <span className="hidden rounded-full bg-white/10 px-3 py-1.5 text-xs sm:inline">
                 {user.name.split(' ')[0]} · <span className="text-brand-gold">{ROLE_LABELS[user.role]}</span>
               </span>
+              <NotificationBell />
               <button onClick={handleLogout}
                 className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">
                 Logout
@@ -149,10 +151,16 @@ export default function Navbar() {
             ))}
             <div className="mt-1 border-t border-white/10 pt-2">
               {user ? (
-                <button onClick={handleLogout}
-                  className="w-full rounded-lg border border-white/20 px-3 py-2.5 text-left text-sm hover:bg-white/10">
-                  Logout · {user.name.split(' ')[0]}
-                </button>
+                <>
+                  <div className="flex items-center justify-between px-3 py-2 text-sm">
+                    <span className="text-neutral-400">Notifications</span>
+                    <NotificationBell />
+                  </div>
+                  <button onClick={handleLogout}
+                    className="w-full rounded-lg border border-white/20 px-3 py-2.5 text-left text-sm hover:bg-white/10">
+                    Logout · {user.name.split(' ')[0]}
+                  </button>
+                </>
               ) : (
                 <Link onClick={() => setDrawerOpen(false)} to="/login"
                   className="block w-full rounded-lg bg-brand-red px-3 py-2.5 text-center font-semibold text-white">

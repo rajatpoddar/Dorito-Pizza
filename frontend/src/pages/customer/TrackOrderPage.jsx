@@ -9,6 +9,16 @@ import { fmtINR, fmtTime } from '../../constants'
 
 const POLL_MS = 5000 // live tracking refresh
 
+const STATUS_TOAST = {
+  accepted:    { text: '✅ Order accepted — kitchen me ban raha hai!', tone: 'bg-emerald-500' },
+  preparing:   { text: '👨‍🍳 Kitchen ne start kar diya', tone: 'bg-blue-500' },
+  ready:       { text: '🍕 Pack ho gaya — driver jaldi aayega', tone: 'bg-violet-500' },
+  out_for_delivery: { text: '🛵 Driver nikal chuka hai — OTP ready rakhein!', tone: 'bg-sky-500' },
+  delivered:   { text: '🎉 Order deliver ho gaya — dhanyavaad!', tone: 'bg-green-600' },
+  rejected:    { text: '😔 Order reject kar diya gaya', tone: 'bg-red-500' },
+  cancelled:   { text: 'Order cancel kar diya gaya', tone: 'bg-neutral-600' },
+}
+
 /* ------------------------------------------------------------------ */
 /*  Main component — switches between logged-in list view and guest   */
 /* ------------------------------------------------------------------ */
@@ -118,6 +128,9 @@ function LiveTracking() {
   const [order, setOrder] = useState(null)
   const [error, setError] = useState('')
   const [resending, setResending] = useState(false)
+  const [statusToast, setStatusToast] = useState(null) // { label, tone }
+  const prevStatusRef = useRef(null)
+  const isFirstLoadRef = useRef(true)
 
   const resendOtp = async () => {
     if (!orderId) return
@@ -137,7 +150,18 @@ function LiveTracking() {
     api
       .get(`/orders/${orderId}/track`)
       .then((res) => {
-        setOrder(res.data.order)
+        const next = res.data.order
+        // Detect status change after first load → show toast.
+        if (!isFirstLoadRef.current && prevStatusRef.current && next.status !== prevStatusRef.current) {
+          const label = STATUS_TOAST[next.status]
+          if (label) {
+            setStatusToast(label)
+            setTimeout(() => setStatusToast(null), 4000)
+          }
+        }
+        prevStatusRef.current = next.status
+        isFirstLoadRef.current = false
+        setOrder(next)
         setError('')
       })
       .catch((e) => {
@@ -168,6 +192,28 @@ function LiveTracking() {
         Loading order…
       </main>
     )
+
+  // After error/loading guards, wrap the page in a fragment that also
+  // shows the live-status toast when something changes.
+  return (
+    <>
+      {statusToast && (
+        <div
+          key={statusToast.text}
+          className={`fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full ${statusToast.tone} px-5 py-2 text-sm font-bold text-white shadow-lg animate-bounce`}
+          role="status"
+        >
+          {statusToast.text}
+        </div>
+      )}
+      {renderLiveTracking(order)}
+    </>
+  )
+}
+
+function renderLiveTracking(order) {
+  // Body of the original LiveTracking return — extracted so the wrapper
+  // above can prepend the toast without losing the original layout.
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-16 pt-6">

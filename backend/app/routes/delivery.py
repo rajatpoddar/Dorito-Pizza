@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 
 from app.extensions import db
-from app.models import Order
+from app.models import Notification, Order
 from app.services import notify as notify_svc
 from app.services import whatsapp
 from app.utils.decorators import roles_required
@@ -77,4 +77,10 @@ def deliver(order_id):
                            whatsapp.delivered_message(order),
                            kind=whatsapp.WhatsAppOutbox.KIND_DELIVERED, order_id=order.id)
     notify_svc.notify_order_event(order, "delivered")
+    # Notify all managers (dashboard activity feed + bell).
+    notify_svc.notify_role(
+        "manager", "✅ Order delivered",
+        f"{order.order_number} deliver ho gaya — ₹{float(order.total_amount):.0f} ({order.payment_mode.upper()}).",
+        Notification.TYPE_ORDER, order.id,
+    )
     return jsonify(order=order.to_dict())

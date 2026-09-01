@@ -6,7 +6,7 @@
 
 **Legend:** ✅ done · 🟡 in progress · ⏳ planned · ❌ blocked · 🚫 dropped
 
-**Last updated:** 2026-09-01 (Phase 5.3 complete: customer saved addresses with CRUD API + checkout/account UI)
+**Last updated:** 2026-09-01 (Phase 5.6 complete: OTP profile update + notification sounds + manager accept/reject)
 
 ---
 
@@ -14,19 +14,19 @@
 
 | Area | State | Note |
 |------|-------|------|
-| Backend Flask API | ✅ stable | All v2 routes wired + tested |
-| Frontend React SPA | ✅ stable | 4 role dashboards functional |
+| Backend Flask API | ✅ stable | 60 endpoints across 11 blueprints |
+| Frontend React SPA | ✅ stable | 4 role dashboards + 9 admin sub-pages |
 | PostgreSQL schema | ✅ stable | Auto-heal helpers + `migrations/notes.md` |
 | WhatsApp outbox | ✅ stable | Worker draining 1 msg / 2.5 s |
-| PWA | ✅ installable | Manifest + service worker shipped |
+| PWA | ✅ installable | Manifest + service worker + 9 notification sounds |
 | Docker compose | ✅ stable | db + backend + frontend (nginx) |
-| Test coverage | ✅ gated | 79 pytest tests, 65% line coverage, 60% floor enforced in CI |
+| Test coverage | ✅ gated | **99 pytest tests**, 65% line coverage, 60% floor enforced in CI |
 | CI / CD | ✅ green | GitHub Actions: backend lint+test+coverage, frontend lint+build, compose smoke |
 | Rate limiting | ✅ | Flask-Limiter: per-IP limits on all public auth/OTP endpoints + guest checkout |
 | Error tracking | ✅ | Sentry SDK wired; only initialises when `SENTRY_DSN` is set (no-op in dev/test) |
-| Structured logging | ✅ | JSON logs to stdout in production; `request_id` propagated via `flask.g` and into every log line; human-readable fallback in dev |
-| Production deploy | 🟡 manual | Docker compose works; no auto-deploy |
-| Docs | ✅ | Moved to `docs/` folder for cleaner root |
+| Structured logging | ✅ | JSON logs to stdout in production; `request_id` propagated via `flask.g` |
+| Production deploy | ✅ | One-command `deploy.sh` (auto-generates `.env`, picks ports, builds, waits for health) |
+| Docs | ✅ | Moved to `docs/` folder; API table complete in README |
 
 ---
 
@@ -251,7 +251,7 @@ can land unnoticed. This is the next **highest-leverage** work.
 
 ---
 
-## 6. Phase 5 — UX Polish + Production Readiness 🟡 IN PROGRESS (20%)
+## 6. Phase 5 — UX Polish + Production Readiness 🟡 IN PROGRESS (60%)
 
 Priority order — quick wins first, then bigger features.
 
@@ -343,6 +343,75 @@ Priority order — quick wins first, then bigger features.
 | P5.26 | Daily `pg_dump` backup cron | ⏳ | P4.8 — needed before any real customer |
 | P5.27 | Android APK via Capacitor | ⏳ | After Razorpay lands |
 | P5.28 | HTTPS + domain setup docs | ⏳ | Runbook for production deploy |
+
+### 6.8 Notification Sounds + Profile OTP Update ✅ COMPLETE
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P5.29 | 9 notification sounds (`public/sounds/01..09_*.mp3`) | ✅ | new_order, order_accepted, order_rejected, kitchen_new_order, customer_confirmed, driver_new_delivery, driver_pickup_ready, customer_out_for_delivery, order_delivered |
+| P5.30 | `OtpCode.purpose` column (`login` / `phone_update`) | ✅ | Migration via auto-heal; old codes for one purpose don't affect the other |
+| P5.31 | `POST /api/auth/otp/send-update` + `PUT /api/auth/me/profile` | ✅ | Phone update requires `purpose=phone_update` OTP; rate-limited (5/10 min) |
+| P5.32 | `AccountPage.jsx` name + phone update flow | ✅ | "Send OTP → enter 6-digit → save"; name updates directly, phone gated |
+| P5.33 | Sounds played on staff consoles (ManageOrders, KitchenDisplay, DeliveryPage) | ✅ | `useEffect` on poll → play matching mp3; throttled so rapid polls don't double-fire |
+
+**Why this matters for the demo:** every status change the manager / cook / agent makes
+produces a sound on the relevant console — the client *feels* the system working
+without reading a single line of code. Combined with the manager accept/reject
+flow (6.6) and saved addresses (6.3), the full ordering loop is exercised in
+real time during a live demo.
+
+### 6.9 Notification Flow Hardening ✅ COMPLETE
+
+Audit found three systemic gaps: (a) the kitchen sound was wired to `status === 'pending'`
+but the KDS endpoint only returns `accepted|preparing|ready` — the beep **never fired**;
+(b) the WhatsApp outbox only had messages for `confirmed / accepted / rejected /
+out_for_delivery / delivered` — kitchen progress (`preparing`, `ready`) was silent on
+WhatsApp; (c) no notification bell in the navbar — the existing
+`GET /api/notifications` endpoint had no frontend consumer.
+
+| ID | Deliverable | Status | Notes |
+|----|-------------|--------|-------|
+| P5.34 | New outbox KINDs (`order_accepted`, `order_rejected`, `preparing`, `ready`) | ✅ | separates from `order_confirmed` so analytics can break down per transition |
+| P5.35 | `whatsapp.preparing_message()` + `ready_message()` templates | ✅ | customer gets 2 more WhatsApp messages during the cooking phase |
+| P5.36 | `notify_role(role, …)` helper — fan-out to every active user of a role | ✅ | cooks hear beep on accept, delivery agents hear beep on ready, manager hears beep on delivered |
+| P5.37 | Fixed KitchenDisplayPage sound detection | ✅ | now keyed on `prevStatusRef`; plays on `accepted` (which KDS gets) + on `preparing → ready` (so cook knows to hand off) |
+| P5.38 | Fixed DeliveryPage sound detection | ✅ | plays `new_delivery` on new assignment + `delivered` when order disappears from list |
+| P5.39 | Fixed ManageOrdersPage sound `READY_AUDIO` bug | ✅ | was playing on **any** ready order every poll; now keyed off `prevStatusRef` so it fires once on the actual `preparing → ready` transition |
+| P5.40 | NotificationBell component (`NotificationBell.jsx`) | ✅ | polls every 15s, badge with unread count, dropdown with last 10, mark-all-read on open; used in navbar for every role |
+| P5.41 | Manager dashboard Live Activity feed | ✅ | `GET /api/admin/dashboard/recent-activity` returns last 20 in-app notifications + last 10 WA outbox rows; dashboard renders them as two cards with status pills + kind pills |
+| P5.42 | TrackOrderPage status-change toast | ✅ | customer sees a coloured bouncing toast on every status transition (accepted / preparing / ready / out_for_delivery / delivered / rejected / cancelled) |
+| P5.43 | Browser Notification API on kitchen + delivery | ✅ | was admin-only; now cook + driver also get native OS notifications on relevant transitions |
+| P5.44 | E2E test `test_notification_flow.py` | ✅ | 3 tests — full happy path, reject flow, activity-feed endpoint — verify every transition fires both channels |
+| P5.45 | `notify_role` unit tests | ✅ | 4 tests covering fan-out + inactive user skip + zero-recipients case + dashboard endpoint |
+
+**New order-lifecycle wiring:**
+
+```
+pending  ──(manager accept)──► accepted
+   │  WA: order_confirmed   │  WA: order_accepted
+   │  Notif: customer       │  Notif: customer + role_fanout(cook)
+   │  Sound: manager 🔔     │  Sound: manager + cook 🔔🔔
+   │
+   └──(manager reject)────► rejected
+       WA: order_rejected
+       Notif: customer (with reason)
+       Sound: manager 🔔
+
+accepted ──(cook start)──► preparing
+   │  WA: preparing       │  WA: ready
+   │  Notif: customer     │  Notif: customer + role_fanout(delivery)
+   │  Sound: cook 👨‍🍳    │  Sound: cook + delivery 🛵
+
+ready ──(driver start)──► out_for_delivery
+   │  WA: out_for_delivery
+   │  Notif: customer (with OTP)
+   │  Sound: delivery 🛵
+
+out_for_delivery ──(driver OTP)──► delivered
+   │  WA: delivered
+   │  Notif: customer + role_fanout(manager)
+   │  Sound: manager + delivery 🎉
+```
 
 
 ---
@@ -464,32 +533,35 @@ A phase is "done" only when **all** of the following are true:
 If you have one week of focused time, work in this order to maximize value:
 
 1. **B3** Marketing winback boundary (½ day) — the one remaining open bug.
-2. **P4.8** Daily `pg_dump` cron + restore runbook (½ day) — needed
-   before any real customer goes live.
-3. **P5.2** Razorpay UPI (2 days) — the highest-impact v3.0 feature for
-   a real shop.
-4. **P5.6** Hindi / English toggle (1 day) — Desi UX win.
-5. **P5.1** Android APK via Capacitor (2 days) — once the UPI lands, the
-   APK is the delivery vehicle.
+2. **P5.26** Daily `pg_dump` cron + restore runbook (½ day) — needed
+   before any real customer goes live (was P4.8).
+3. **P5.13 + P5.14** Map-based address picker + delivery pin (1–2 days) — the
+   last big UX gap on the customer side; Leaflet + OpenStreetMap = free.
+4. **P5.19** Razorpay UPI (2 days) — the highest-impact v3.0 feature for
+   a real shop (the current UPI option shows a manual QR code only).
+5. **P5.27** Android APK via Capacitor (2 days) — once UPI lands, the
+   APK is the delivery vehicle for repeat customers.
 
 After that, the project is production-hardened and the remaining v3.0
-work can be prioritized by user demand.
+work (legal pages, Hindi toggle, loyalty points, multi-shop) can be
+prioritized by user demand.
 
 ---
 
-## 11. Quick Stats (as of 2026-08-31)
+## 11. Quick Stats (as of 2026-09-01)
 
 | Metric | Value |
 |--------|-------|
-| Backend Python files | 36 (incl. `app/models/combo_pack.py`) |
-| Backend lines of code (excl. venv) | ~3 800 |
-| Frontend JSX files | 25 |
+| Backend Python files | 41 (added `app/models/address.py` + `app/models/combo_pack.py`) |
+| Backend lines of code (excl. venv) | ~4 700 |
+| Frontend JSX files | 28 (added `ComboPackCard.jsx`) |
 | Frontend JS files | 3 (`usePolling`, `useCountdown`, `index`) |
-| Frontend lines of code (excl. node_modules) | ~3 600 |
-| DB models | 13 (added `ComboPack` + `ComboPackItem`) |
-| API endpoints | 50+ |
+| Frontend lines of code (excl. node_modules) | ~4 400 |
+| DB models | 14 (added `ComboPack`, `ComboPackItem`, `Address`) |
+| API endpoints | **64** across 11 blueprints (added /admin/dashboard/recent-activity) |
 | Background processes | 2 (worker, scheduler) |
 | Docker services | 3 (db, backend, frontend) |
-| Test files | 79 tests (39 unit + 38 integration + 1 e2e + 1 logging), 14 s |
+| Test functions | **99** (unit + integration + e2e), ~30 s on CI |
+| Notification sounds | 9 (`/assets/sounds/01..09_*.mp3`) |
 | Documentation files | 7 in `docs/` + README.md + tests/README.md + migrations/notes.md |
 

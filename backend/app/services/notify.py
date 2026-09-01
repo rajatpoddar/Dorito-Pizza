@@ -2,7 +2,7 @@
 from flask import current_app
 
 from app.extensions import db
-from app.models import Notification
+from app.models import Notification, User
 
 
 def notify_user(user_id: int | None, title: str, body: str = "", type_: str = Notification.TYPE_INFO,
@@ -15,6 +15,29 @@ def notify_user(user_id: int | None, title: str, body: str = "", type_: str = No
                      type=type_, order_id=order_id)
     )
     db.session.commit()
+
+
+def notify_role(role: str, title: str, body: str = "",
+                type_: str = Notification.TYPE_INFO, order_id: int | None = None) -> int:
+    """Fan-out an in-app notification to every active user with the given role.
+
+    Used for staff-side events — e.g. when an order is accepted, all cooks
+    get a "New order 👨‍🍳" notification so their KDS bell rings.
+
+    Returns the number of recipients (0 if no active users have that role).
+    """
+    recipients = User.query.filter_by(role=role, is_active=True).all()
+    if not recipients:
+        return 0
+    safe_title = title[:118]
+    safe_body = (body or "")[:298]
+    for u in recipients:
+        db.session.add(
+            Notification(user_id=u.id, title=safe_title, body=safe_body,
+                         type=type_, order_id=order_id)
+        )
+    db.session.commit()
+    return len(recipients)
 
 
 def notify_order_event(order, event: str, reason: str = None) -> None:

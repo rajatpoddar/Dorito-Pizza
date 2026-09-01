@@ -6,7 +6,10 @@ import { fmtINR, fmtTime, STATUS_LABELS } from '../../constants'
 
 // ── notification sounds from /public/sounds/ ──
 const NEW_ORDER_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/01_new_order.mp3') : null
+const ACCEPTED_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/02_order_accepted.mp3') : null
+const REJECTED_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/03_order_rejected.mp3') : null
 const READY_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/07_driver_pickup_ready.mp3') : null
+const DELIVERED_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/09_order_delivered.mp3') : null
 
 function playNewOrderSound() {
   if (NEW_ORDER_AUDIO) {
@@ -14,11 +17,28 @@ function playNewOrderSound() {
     NEW_ORDER_AUDIO.play().catch(() => {}) // autoplay may be blocked
   }
 }
-
+function playAcceptedSound() {
+  if (ACCEPTED_AUDIO) {
+    ACCEPTED_AUDIO.currentTime = 0
+    ACCEPTED_AUDIO.play().catch(() => {})
+  }
+}
+function playRejectedSound() {
+  if (REJECTED_AUDIO) {
+    REJECTED_AUDIO.currentTime = 0
+    REJECTED_AUDIO.play().catch(() => {})
+  }
+}
 function playReadySound() {
   if (READY_AUDIO) {
     READY_AUDIO.currentTime = 0
-    READY_AUDIO.play().catch(() => {}) 
+    READY_AUDIO.play().catch(() => {})
+  }
+}
+function playDeliveredSound() {
+  if (DELIVERED_AUDIO) {
+    DELIVERED_AUDIO.currentTime = 0
+    DELIVERED_AUDIO.play().catch(() => {})
   }
 }
 
@@ -44,6 +64,7 @@ export default function ManageOrdersPage() {
   const [newOrderIds, setNewOrderIds] = useState(new Set())
   const [readyOrderIds, setReadyOrderIds] = useState(new Set())
   const prevOrderIdsRef = useRef(new Set())
+  const prevStatusRef = useRef(new Map()) // id → status (for transition detection)
   const isFirstLoadRef = useRef(true)
 
   const load = useCallback(() => {
@@ -52,56 +73,85 @@ export default function ManageOrdersPage() {
       .then((r) => {
         const newOrders = r.data.orders
         const newIds = new Set(newOrders.map(o => o.id))
+        const newStatusMap = new Map(newOrders.map((o) => [o.id, o.status]))
 
-        // Detect NEW orders (id wasn't in previous set)
+        // Detect transitions since last poll (skip on first load).
         if (!isFirstLoadRef.current) {
           const prevIds = prevOrderIdsRef.current
-          const freshOrders = newOrders.filter(o => o.status === 'pending' && !prevIds.has(o.id))
+          const prevStatus = prevStatusRef.current
+
+          // 1. Brand-new pending order — sound + browser notif.
+          const freshOrders = newOrders.filter((o) => o.status === 'pending' && !prevIds.has(o.id))
           if (freshOrders.length > 0) {
-            // Sound + browser notification
             playNewOrderSound()
-            freshOrders.forEach(o => {
+            freshOrders.forEach((o) => {
               sendBrowserNotification(
                 `🍕 New Order: ${o.order_number}`,
-                `${o.customer_name} — ${o.items.map(i => i.item_name).join(', ')}\nTotal: ₹${o.total_amount}`
+                `${o.customer_name} — ${o.items.map((i) => i.item_name).join(', ')}\nTotal: ₹${o.total_amount}`,
               )
             })
-            // Highlight new orders for 10s
-            setNewOrderIds(prev => {
+            setNewOrderIds((prev) => {
               const next = new Set(prev)
-              freshOrders.forEach(o => next.add(o.id))
+              freshOrders.forEach((o) => next.add(o.id))
               return next
             })
             setTimeout(() => {
-              setNewOrderIds(prev => {
+              setNewOrderIds((prev) => {
                 const next = new Set(prev)
-                freshOrders.forEach(o => next.delete(o.id))
+                freshOrders.forEach((o) => next.delete(o.id))
                 return next
               })
             }, 10000)
           }
 
-          // Detect orders that just became 'ready' — highlight for driver assignment
-          const newlyReady = newOrders.filter(o => o.status === 'ready' && !readyOrderIds.has(o.id))
+          // 2. pending → accepted (manager just clicked Accept on a known order).
+          const justAccepted = newOrders.filter(
+            (o) => o.status === 'accepted' && prevStatus.get(o.id) === 'pending',
+          )
+          if (justAccepted.length > 0) {
+            playAcceptedSound()
+          }
+
+          // 3. pending → rejected.
+          const justRejected = newOrders.filter(
+            (o) => o.status === 'rejected' && prevStatus.get(o.id) === 'pending',
+          )
+          if (justRejected.length > 0) {
+            playRejectedSound()
+          }
+
+          // 4. preparing → ready (only fires on the actual transition).
+          const newlyReady = newOrders.filter(
+            (o) => o.status === 'ready' && prevStatus.get(o.id) === 'preparing',
+          )
           if (newlyReady.length > 0) {
             playReadySound()
-            newlyReady.forEach(o => {
+            newlyReady.forEach((o) => {
               sendBrowserNotification(
                 `🛵 Ready: ${o.order_number}`,
-                `Order ready hai — driver assign karein!` 
+                `Order ready hai — driver assign karein!`,
               )
             })
-            setReadyOrderIds(prev => {
+            setReadyOrderIds((prev) => {
               const next = new Set(prev)
-              newlyReady.forEach(o => next.add(o.id))
+              newlyReady.forEach((o) => next.add(o.id))
               return next
             })
           }
-          // Remove highlight for orders no longer ready
-          setReadyOrderIds(prev => {
+
+          // 5. out_for_delivery → delivered.
+          const justDelivered = newOrders.filter(
+            (o) => o.status === 'delivered' && prevStatus.get(o.id) === 'out_for_delivery',
+          )
+          if (justDelivered.length > 0) {
+            playDeliveredSound()
+          }
+
+          // Remove ready-highlight for orders no longer in ready state.
+          setReadyOrderIds((prev) => {
             const next = new Set(prev)
             for (const id of next) {
-              const o = newOrders.find(ord => ord.id === id)
+              const o = newOrders.find((ord) => ord.id === id)
               if (!o || o.status !== 'ready') next.delete(id)
             }
             return next
@@ -109,6 +159,7 @@ export default function ManageOrdersPage() {
         }
 
         prevOrderIdsRef.current = newIds
+        prevStatusRef.current = newStatusMap
         isFirstLoadRef.current = false
         setOrders(newOrders)
       })

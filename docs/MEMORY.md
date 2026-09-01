@@ -7,7 +7,7 @@
 > ⚠️ This file is **opinionated and informal**. For the formal spec, see `PRD.md`,
 > `ARCHITECTURE.md`, `RULES.md`, `PHASE.md`, `DESIGN.md`, `PLAN.md`.
 
-**Last refreshed:** 2026-09-01 (Phase 5.2: combo packs with admin CRUD + customer menu section)
+**Last refreshed:** 2026-09-01 (Phase 5.9: notification flow hardened — every status transition fires WhatsApp + in-app + sound; manager activity feed + staff bell)
 
 ---
 
@@ -75,6 +75,33 @@ React SPA ──► /api/* (Flask 3 + SQLAlchemy)
     first, every item that already had a DB photo would silently fall
     back to that opaque thumbnail and the new transparent hero slide
     would never show. See `heroImageFor()` in `src/constants.js`.
+11. **OTP codes have a `purpose` (`login` or `phone_update`).** Codes
+    are NOT interchangeable — a `login` OTP for `X` must not satisfy a
+    `phone_update` request for `X` (and vice-versa). `OtpCode.issue()`
+    and `OtpCode.verify()` both take `purpose`; the model indexes by
+    `(phone, purpose, consumed_at)`. If you add a new OTP flow, give
+    it its own `purpose` value, never reuse `login`.
+12. **Manager must ACCEPT an order before it appears on the KDS.**
+    The status flow is `pending → accepted → preparing → ready →
+    out_for_delivery → delivered`. The kitchen only sees `accepted`+
+    orders; `POST /api/admin/orders/:id/accept` is the gate. Manager
+    can also `reject` a `pending` order with a `reason` (required) —
+    that fires WhatsApp + in-app notif. Do NOT skip the accepted step
+    in any new "fast path" — it is the demo's wow moment (customer
+    sees their order go from "pending" to "accepted" in real time).
+13. **Every status transition fires THREE channels in parallel.**
+    `routes/admin.py` (accept/reject), `routes/kitchen.py` (advance),
+    `routes/delivery.py` (start_delivery/deliver) all call BOTH
+    `notify_svc.notify_order_event()` (customer in-app bell) AND
+    `whatsapp.queue_message()` (outbox). Adding a new transition
+    without firing both is a silent bug — the customer / staff console
+    goes dark. Tests in `tests/integration/test_notification_flow.py`
+    pin every transition.
+14. **`notify_role(role, ...)` fans out to every ACTIVE user of that
+    role, not just the actor.** Used so when a manager accepts an
+    order, all cooks hear a beep; when kitchen marks ready, all
+    delivery agents hear a beep. Returns the recipient count. Inactive
+    users are skipped (deactivated staff don't get spammed).
 
 ---
 
@@ -93,6 +120,13 @@ React SPA ──► /api/* (Flask 3 + SQLAlchemy)
 | Shop open/closed | `ShopSettings.is_shop_open` + `closed_message`; `POST /api/orders` returns 503 when off; `ShopContext` polls `/api/settings` every 60 s |
 | Menu seed data | `backend/seed.py` |
 | Combo packs | `backend/app/models/combo_pack.py` + `frontend/src/components/ComboPackCard.jsx` |
+| Saved addresses | `backend/app/models/address.py` + `backend/app/routes/addresses.py` + `frontend/src/pages/customer/AccountPage.jsx` + `CheckoutPage.jsx` |
+| Manager accept/reject | `backend/app/routes/admin.py` (`/orders/:id/accept|reject`) + `frontend/src/pages/admin/ManageOrdersPage.jsx` |
+| Profile update (name + phone) | `frontend/src/pages/customer/AccountPage.jsx` + `PUT /api/auth/me/profile` |
+| Notification sounds | `frontend/public/sounds/*.mp3` + played by `ManageOrdersPage`, `KitchenDisplayPage`, `DeliveryPage` |
+| Notification bell (customer + staff) | `frontend/src/components/NotificationBell.jsx` + `GET /api/notifications` |
+| Manager activity feed | `GET /api/admin/dashboard/recent-activity` + dashboard's `📣 Live Activity` card |
+| `notify_role()` fan-out | `backend/app/services/notify.py` (helper) — fires on accept (→ cooks) + ready (→ delivery) + delivered (→ manager) |
 | Brand colors | `frontend/tailwind.config.js` |
 | Customer pages | `frontend/src/pages/customer/` |
 | Admin pages | `frontend/src/pages/admin/` |
@@ -100,6 +134,7 @@ React SPA ──► /api/* (Flask 3 + SQLAlchemy)
 | Delivery page | `frontend/src/pages/delivery/` |
 | API base URL | `frontend/src/api/client.js` |
 | Axios JWT interceptor | `frontend/src/api/client.js` |
+| Deploy script | `deploy.sh` (one-command, auto `.env`, picks ports, builds) |
 
 
 ---
@@ -275,6 +310,13 @@ docker compose exec db psql -U dorito -c \
 | 2026-08-28 | This MEMORY.md file | to onboard new contributors / AI agents fast |
 | 2026-08-31 | `is_veg` on MenuItem | Veg/non-veg badge on every menu card + admin |
 | 2026-08-31 | Combo packs | `ComboPack` + `ComboPackItem` models; admin CRUD + customer menu section |
+| 2026-09-01 | Manager accept/reject flow | `Order.STATUS_ACCEPTED` + `STATUS_REJECTED`; gates KDS so kitchen never sees raw `pending` |
+| 2026-09-01 | Customer saved addresses | `Address` model (max 5/user, auto-default); full UI on Account page + checkout quick-select |
+| 2026-09-01 | OTP `purpose` (login vs phone_update) | phone-update OTP is a separate code from login OTP; rate-limited separately |
+| 2026-09-01 | Notification sounds | 9 mp3s in `public/sounds/` played on staff consoles for new orders, accept/reject, kitchen tickets, delivery updates |
+| 2026-09-01 | `deploy.sh` rewrite | one-command VPS deploy: random `.env`, free-port detection, live build output, healthcheck wait |
+| 2026-09-01 | Notification hardening | every status transition fires WhatsApp (`order_accepted`/`preparing`/`ready`/`order_rejected`/`delivered`) + in-app notif (`notify_role` fan-out to cooks/delivery) + sound on relevant console; manager dashboard got a Live Activity feed + WA outbox tail; NotificationBell in navbar for all roles |
+| 2026-09-01 | Per-status sound on frontend | `ManageOrdersPage` now has 5 distinct sounds (new/accepted/rejected/ready/delivered) keyed off `prevStatusRef` so they fire only on the actual transition, not on every poll |
 
 ---
 

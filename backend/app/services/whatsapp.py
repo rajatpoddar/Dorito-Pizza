@@ -333,6 +333,26 @@ def order_confirmed_message(order: Order) -> str:
     return msg
 
 
+def preparing_message(order: Order) -> str:
+    """Kitchen just started cooking. Short, reassuring."""
+    return (
+        "🍕 *Dorito Pizza and Bakery*\n\n"
+        f"👨‍🍳 Aapka order *{order.order_number}* prepare ho raha hai.\n"
+        "Jaldi ready ho jayega. Thoda wait karein 🙏\n\n"
+        f"{_shop_footer()}"
+    )
+
+
+def ready_message(order: Order) -> str:
+    """Kitchen finished — handing over to the delivery agent."""
+    return (
+        "🍕 *Dorito Pizza and Bakery*\n\n"
+        f"✅ Aapka order *{order.order_number}* pack ho chuka hai.\n"
+        "Driver jaldi aapke address ke liye nikalega 🛵\n\n"
+        f"{_shop_footer()}"
+    )
+
+
 def order_accepted_message(order: Order) -> str:
     return (
         "🍕 *Dorito Pizza and Bakery*\n\n"

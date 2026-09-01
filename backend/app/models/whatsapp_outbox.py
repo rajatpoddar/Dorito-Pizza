@@ -13,12 +13,19 @@ class WhatsAppOutbox(db.Model):
     STATUS_FAILED = "failed"
     STATUS_SKIPPED = "skipped_no_key"
 
+    # Customer-facing lifecycle messages (one kind per transition so the
+    # outbox audit page + analytics can break down by kind).
     KIND_OTP = "otp"
-    KIND_ORDER_CONFIRMED = "order_confirmed"
-    KIND_OUT_FOR_DELIVERY = "out_for_delivery"
-    KIND_DELIVERED = "delivered"
-    KIND_DELIVERY_OTP = "delivery_otp"
-    KIND_MARKETING = "marketing"
+    KIND_ORDER_CONFIRMED = "order_confirmed"   # order placed
+    KIND_ORDER_ACCEPTED = "order_accepted"     # manager accepted
+    KIND_ORDER_REJECTED = "order_rejected"     # manager rejected
+    KIND_PREPARING = "preparing"               # kitchen started
+    KIND_READY = "ready"                       # kitchen finished
+    KIND_OUT_FOR_DELIVERY = "out_for_delivery" # driver picked up
+    KIND_DELIVERED = "delivered"               # doorstep completion
+    KIND_DELIVERY_OTP = "delivery_otp"         # OTP resend button
+    KIND_MARKETING = "marketing"               # broadcast / scheduler
+    KIND_STAFF_ALERT = "staff_alert"           # internal ops note
 
     id = db.Column(db.Integer, primary_key=True)
     phone = db.Column(db.String(15), nullable=False, index=True)

@@ -6,13 +6,31 @@ import { fmtINR, fmtTime } from '../../constants'
 
 const POLL_MS = 5000
 
-// ── notification sounds ──
-const DRIVER_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/06_driver_new_delivery.mp3') : null
+// ── notification sounds (from /public/sounds/) ──
+const NEW_DELIVERY_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/06_driver_new_delivery.mp3') : null
+const DELIVERED_BEEP_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/09_order_delivered.mp3') : null
 
-function playDriverSound() {
-  if (DRIVER_AUDIO) {
-    DRIVER_AUDIO.currentTime = 0
-    DRIVER_AUDIO.play().catch(() => {})
+function playNewDeliverySound() {
+  if (NEW_DELIVERY_AUDIO) {
+    NEW_DELIVERY_AUDIO.currentTime = 0
+    NEW_DELIVERY_AUDIO.play().catch(() => {})
+  }
+}
+function playDeliveredSound() {
+  if (DELIVERED_BEEP_AUDIO) {
+    DELIVERED_BEEP_AUDIO.currentTime = 0
+    DELIVERED_BEEP_AUDIO.play().catch(() => {})
+  }
+}
+
+function browserNotify(title, body) {
+  if (!('Notification' in window)) return
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/favicon.ico' })
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then((p) => {
+      if (p === 'granted') new Notification(title, { body, icon: '/favicon.ico' })
+    })
   }
 }
 
@@ -21,7 +39,8 @@ export default function DeliveryPage() {
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
   const [otp, setOtp] = useState({}) // { orderId: '1234' }
-  const prevOrderIdsRef = useRef(new Set())
+  const [newDeliveryIds, setNewDeliveryIds] = useState(new Set())
+  const prevOrdersRef = useRef(new Map()) // id → status
   const isFirstLoadRef = useRef(true)
 
   const load = useCallback(
@@ -30,18 +49,41 @@ export default function DeliveryPage() {
         .get('/delivery/orders')
         .then((r) => {
           const newOrders = r.data.orders
-          const newIds = new Set(newOrders.map(o => o.id))
+          const newMap = new Map(newOrders.map((o) => [o.id, o.status]))
 
-          // Detect NEW orders assigned to this driver (sound alert)
           if (!isFirstLoadRef.current) {
-            const prevIds = prevOrderIdsRef.current
-            const freshOrders = newOrders.filter(o => !prevIds.has(o.id))
-            if (freshOrders.length > 0) {
-              playDriverSound()
+            const prevMap = prevOrdersRef.current
+
+            // NEW delivery assignment — order just appeared on this driver's list.
+            const freshDeliveries = newOrders.filter((o) => !prevMap.has(o.id))
+            if (freshDeliveries.length > 0) {
+              playNewDeliverySound()
+              freshDeliveries.forEach((o) =>
+                browserNotify(`🛵 New delivery: ${o.order_number}`,
+                  `${o.customer_name} · ${o.delivery_address}`),
+              )
+              setNewDeliveryIds((prev) => {
+                const next = new Set(prev)
+                freshDeliveries.forEach((o) => next.add(o.id))
+                return next
+              })
+              setTimeout(() => {
+                setNewDeliveryIds((prev) => {
+                  const next = new Set(prev)
+                  freshDeliveries.forEach((o) => next.delete(o.id))
+                  return next
+                })
+              }, 12000)
+            }
+
+            // Orders that disappeared from the list (got delivered).
+            const completed = Array.from(prevMap.keys()).filter((id) => !newMap.has(id))
+            if (completed.length > 0) {
+              playDeliveredSound()
             }
           }
 
-          prevOrderIdsRef.current = newIds
+          prevOrdersRef.current = newMap
           isFirstLoadRef.current = false
           setOrders(newOrders)
         })
@@ -109,7 +151,14 @@ export default function DeliveryPage() {
 
       <div className="space-y-4">
         {active.map((o) => (
-          <article key={o.id} className="card border-l-4 border-l-brand-gold p-4">
+          <article
+            key={o.id}
+            className={`card border-l-4 p-4 transition-all duration-300 ${
+              newDeliveryIds.has(o.id)
+                ? 'border-l-sky-500 ring-2 ring-sky-300 animate-pulse'
+                : 'border-l-brand-gold'
+            }`}
+          >
             <div className="flex items-start justify-between">
               <div>
                 <p className="font-bold text-brand-dark">{o.order_number}</p>

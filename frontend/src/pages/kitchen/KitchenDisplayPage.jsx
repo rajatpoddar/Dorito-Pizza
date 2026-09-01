@@ -5,18 +5,36 @@ import { fmtINR, fmtTime } from '../../constants'
 
 const POLL_MS = 4000
 
-// ── notification sound ──
-const KITCHEN_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/04_kitchen_new_order.mp3') : null
+// ── notification sounds (from /public/sounds/) ──
+const NEW_TICKET_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/04_kitchen_new_order.mp3') : null
+const READY_BEEP_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/07_driver_pickup_ready.mp3') : null
 
-function playKitchenSound() {
-  if (KITCHEN_AUDIO) {
-    KITCHEN_AUDIO.currentTime = 0
-    KITCHEN_AUDIO.play().catch(() => {})
+function playNewTicketSound() {
+  if (NEW_TICKET_AUDIO) {
+    NEW_TICKET_AUDIO.currentTime = 0
+    NEW_TICKET_AUDIO.play().catch(() => {})
+  }
+}
+function playReadySound() {
+  if (READY_BEEP_AUDIO) {
+    READY_BEEP_AUDIO.currentTime = 0
+    READY_BEEP_AUDIO.play().catch(() => {})
+  }
+}
+
+function browserNotify(title, body) {
+  if (!('Notification' in window)) return
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/favicon.ico' })
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then((p) => {
+      if (p === 'granted') new Notification(title, { body, icon: '/favicon.ico' })
+    })
   }
 }
 
 const COLUMN_DEFS = [
-  { key: 'pending', title: '🔥 New Orders', tone: 'border-amber-300', bg: 'bg-amber-50', action: 'Start Preparing', next: 'preparing', toneBtn: 'bg-amber-500 hover:bg-amber-600' },
+  { key: 'accepted', title: '🔥 New Orders', tone: 'border-amber-300', bg: 'bg-amber-50', action: 'Start Preparing', next: 'preparing', toneBtn: 'bg-amber-500 hover:bg-amber-600' },
   { key: 'preparing', title: '👨‍🍳 Preparing', tone: 'border-blue-300', bg: 'bg-blue-50', action: 'Mark Ready', next: 'ready', toneBtn: 'bg-blue-500 hover:bg-blue-600' },
   { key: 'ready', title: '✅ Ready for Delivery', tone: 'border-green-300', bg: 'bg-green-50', action: null, next: null, toneBtn: '' },
 ]
@@ -25,7 +43,9 @@ export default function KitchenDisplayPage() {
   const [orders, setOrders] = useState([])
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
-  const prevOrderIdsRef = useRef(new Set())
+  const [newTicketIds, setNewTicketIds] = useState(new Set())
+  const [readyDoneIds, setReadyDoneIds] = useState(new Set())
+  const prevOrdersRef = useRef(new Map()) // id → status (for transition detection)
   const isFirstLoadRef = useRef(true)
 
   const load = useCallback(
@@ -34,18 +54,58 @@ export default function KitchenDisplayPage() {
         .get('/kitchen/orders')
         .then((r) => {
           const newOrders = r.data.orders
-          const newIds = new Set(newOrders.map(o => o.id))
+          const newMap = new Map(newOrders.map((o) => [o.id, o.status]))
 
-          // Detect NEW pending orders (sound alert)
+          // First load: just seed the ref, no sound.
           if (!isFirstLoadRef.current) {
-            const prevIds = prevOrderIdsRef.current
-            const freshOrders = newOrders.filter(o => o.status === 'pending' && !prevIds.has(o.id))
-            if (freshOrders.length > 0) {
-              playKitchenSound()
+            const prevMap = prevOrdersRef.current
+
+            // NEW accepted tickets — orders that just appeared AND are accepted.
+            const freshAccepted = newOrders.filter(
+              (o) => o.status === 'accepted' && !prevMap.has(o.id),
+            )
+            if (freshAccepted.length > 0) {
+              playNewTicketSound()
+              freshAccepted.forEach((o) =>
+                browserNotify(`🍕 New Order: ${o.order_number}`,
+                  `${o.customer_name} — ${o.items.map((i) => i.item_name).join(', ')}`),
+              )
+              setNewTicketIds((prev) => {
+                const next = new Set(prev)
+                freshAccepted.forEach((o) => next.add(o.id))
+                return next
+              })
+              setTimeout(() => {
+                setNewTicketIds((prev) => {
+                  const next = new Set(prev)
+                  freshAccepted.forEach((o) => next.delete(o.id))
+                  return next
+                })
+              }, 12000)
+            }
+
+            // Orders that just became 'ready' — beep so cook can hand off.
+            const newlyReady = newOrders.filter(
+              (o) => o.status === 'ready' && prevMap.get(o.id) === 'preparing',
+            )
+            if (newlyReady.length > 0) {
+              playReadySound()
+              setReadyDoneIds((prev) => {
+                const next = new Set(prev)
+                newlyReady.forEach((o) => next.add(o.id))
+                return next
+              })
+              setTimeout(() => {
+                setReadyDoneIds((prev) => {
+                  const next = new Set(prev)
+                  newlyReady.forEach((o) => next.delete(o.id))
+                  return next
+                })
+              }, 8000)
             }
           }
 
-          prevOrderIdsRef.current = newIds
+          prevOrdersRef.current = newMap
           isFirstLoadRef.current = false
           setOrders(newOrders)
         })
@@ -97,8 +157,20 @@ export default function KitchenDisplayPage() {
               )}
 
               <div className="space-y-3">
-                {list.map((o) => (
-                  <article key={o.id} className="card border-l-4 border-l-brand-red p-4">
+                {list.map((o) => {
+                  const isNew = newTicketIds.has(o.id)
+                  const isReadyDone = readyDoneIds.has(o.id)
+                  return (
+                  <article
+                    key={o.id}
+                    className={`card border-l-4 p-4 transition-all duration-300 ${
+                      isNew
+                        ? 'border-l-red-500 ring-2 ring-red-300 animate-pulse'
+                        : isReadyDone
+                          ? 'border-l-green-500 ring-2 ring-green-300'
+                          : 'border-l-brand-red'
+                    }`}
+                  >
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="font-bold text-brand-dark">{o.order_number}</p>
@@ -142,7 +214,8 @@ export default function KitchenDisplayPage() {
                       <p className="mt-2 text-xs text-sky-700">🛵 Assigned: {o.delivery_agent.name}</p>
                     )}
                   </article>
-                ))}
+                  )
+                })}
               </div>
             </section>
           )
