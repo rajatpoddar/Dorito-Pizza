@@ -68,7 +68,16 @@ class Order(db.Model):
     delivery_agent_id = db.Column(
         db.Integer, db.ForeignKey("users.id"), nullable=True, index=True
     )
-    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    # ---- map pin (Phase 5.3 — Maps integration, P5.13/P5.14) ----
+    # Set when the customer drops a pin in the Leaflet address picker.
+    # Used by the admin ManageOrdersPage to show delivery location.
+    delivery_lat = db.Column(db.Float, nullable=True)
+    delivery_lng = db.Column(db.Float, nullable=True)
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
     updated_at = db.Column(
         db.DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -122,6 +131,8 @@ class Order(db.Model):
                 if self.delivery_agent
                 else None
             ),
+            "delivery_lat": self.delivery_lat,
+            "delivery_lng": self.delivery_lng,
             "items": [item.to_dict() for item in self.items],
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

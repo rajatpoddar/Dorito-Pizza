@@ -5,6 +5,7 @@ from app.routes.orders import orders_bp
 from app.routes.offers import offers_bp
 from app.routes.notifications import notifications_bp
 from app.routes.addresses import addresses_bp
+from app.routes.geocode import geocode_bp
 from app.routes.admin import admin_bp
 from app.routes.kitchen import kitchen_bp
 from app.routes.delivery import delivery_bp
@@ -12,7 +13,7 @@ from app.routes.settings import public_bp as settings_public_bp, admin_bp as set
 
 ALL_BLUEPRINTS = (
     auth_bp, menu_bp, orders_bp, offers_bp, notifications_bp,
-    addresses_bp,
+    addresses_bp, geocode_bp,
     admin_bp, kitchen_bp, delivery_bp,
     settings_public_bp, settings_admin_bp,
 )

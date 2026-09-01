@@ -7,7 +7,7 @@
 > ⚠️ This file is **opinionated and informal**. For the formal spec, see `PRD.md`,
 > `ARCHITECTURE.md`, `RULES.md`, `PHASE.md`, `DESIGN.md`, `PLAN.md`.
 
-**Last refreshed:** 2026-09-01 (Phase 5.9: notification flow hardened — every status transition fires WhatsApp + in-app + sound; manager activity feed + staff bell)
+**Last refreshed:** 2026-09-01 (Phase 5.3b: maps integration — Leaflet + OSM address picker, delivery pin on admin orders, Nominatim proxy with 1 RPS throttle)
 
 ---
 
@@ -360,6 +360,16 @@ docker compose exec db psql -U dorito -c \
 6. **The in-process worker (`__init__.py` background thread) is also started
    by `wsgi.py`** — if you launch Flask via `flask run` or gunicorn, you
    might get TWO workers. Prefer `python wsgi.py` for local dev.
+7. **Nominatim (OSM) is hard-capped at 1 RPS** with a real User-Agent +
+   Referer. The `/api/geocode/reverse` proxy enforces this via a
+   module-level `_LAST_REQUEST_AT` lock — don't remove it. Bare browser
+   requests get HTTP 403 from Nominatim within minutes, which is why the
+   proxy is mandatory (CORS is a side-benefit, not the reason).
+8. **Leaflet v1.9+ breaks the default marker icon under Webpack/Vite**
+   unless you set `L.Icon.Default.imagePath` or pass an explicit
+   `L.divIcon`. The `<AddressPicker>` component uses a brand-coloured
+   `divIcon` to avoid the broken-image bug. Don't "simplify" it back
+   to the default — the visible pin matters for UX.
 
 ---
 

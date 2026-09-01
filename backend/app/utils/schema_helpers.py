@@ -29,6 +29,12 @@ REQUIRED_COLUMNS = [
         "VARCHAR(255) DEFAULT 'Shop is currently closed. Please come back during business hours.'",
         "VARCHAR(255) DEFAULT 'Shop is currently closed. Please come back during business hours.'",
     ),
+    # Phase 5.3 — Maps integration (P5.13/P5.14). Customer drops a pin in the
+    # Leaflet address picker; lat/lng are stored on the order so the admin
+    # ManageOrdersPage can show the delivery location. Nullable: existing
+    # orders (and orders placed without the map) keep NULL.
+    ("orders", "delivery_lat", "FLOAT", "DOUBLE PRECISION"),
+    ("orders", "delivery_lng", "FLOAT", "DOUBLE PRECISION"),
 ]
 
 
