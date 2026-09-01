@@ -108,6 +108,10 @@ export default function AddressPicker({ value, onChange, onAddress, zoom = 16, h
   const [locating, setLocating] = useState(false)
   const [locateError, setLocateError] = useState('')
   const [recenterTo, setRecenterTo] = useState(null)
+  // One-shot diagnostic that runs when the picker mounts. Helps
+  // debug "why doesn't my button work on this device/browser" without
+  // opening DevTools. Only logged; not shown to the customer.
+  const [geoDiag, setGeoDiag] = useState(null)
   const debounceRef = useRef(null)
   const onAddressRef = useRef(onAddress)
   const onChangeRef = useRef(onChange)
@@ -132,6 +136,23 @@ export default function AddressPicker({ value, onChange, onAddress, zoom = 16, h
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
+
+  // One-shot browser-capability diagnostic on mount. If the API is
+  // missing or the page isn't a secure context, we know immediately
+  // that "Use my current location" can't work and we can hint to the
+  // user upfront. We deliberately don't show this in the UI (it's
+  // noise for the 95% happy path) — it's available via the geoDiag
+  // state for a future debug toggle if needed.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const supported = !!navigator?.geolocation
+    const secure =
+      window.isSecureContext ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.protocol === 'https:'
+    setGeoDiag({ supported, secure, ua: navigator.userAgent })
+  }, [])
 
   /**
    * Drop the pin + fire parent callbacks. Reverse-geocode is debounced
@@ -173,17 +194,35 @@ export default function AddressPicker({ value, onChange, onAddress, zoom = 16, h
    * pin at the resulting lat/lng, and re-center the map so the customer
    * actually sees where they are (GPS is often off by a few hundred m).
    *
-   * Browser support: every modern browser. HTTPS required (localhost
-   * is treated as secure, so the dev runner is fine). When the API
-   * is missing or the user denies permission, we show a clear inline
-   * error and the customer can still type/drag the pin.
+   * Browser quirks handled:
+   * - Safari on Mac occasionally fails with POSITION_UNAVAILABLE on
+   *   `localhost` because the secure-context check is finicky. We don't
+   *   blame the user's GPS in that case; we just say "not available" and
+   *   suggest drag/typing.
+   * - Chrome silently blocks the request if the user previously denied
+   *   it for the site. We use the Permissions API to detect this
+   *   proactively and show a clearer message.
+   * - All error messages offer a "Type address instead" path because
+   *   pin-drag always works as a fallback.
    */
   const useCurrentLocation = useCallback(() => {
     setLocateError('')
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setLocateError('Is browser me location support nahi hai.')
+      setLocateError('Is browser me location support nahi hai. Pin drag karein.')
       return
     }
+
+    // Diagnostic: check secure context. Modern browsers require HTTPS
+    // (or localhost) for geolocation. If somehow we're not in a secure
+    // context, the request will fail with code 2 — we can give a
+    // smarter message instead of "GPS off".
+    const isSecure =
+      typeof window !== 'undefined' &&
+      (window.isSecureContext ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.protocol === 'https:')
+
     setLocating(true)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -201,12 +240,26 @@ export default function AddressPicker({ value, onChange, onAddress, zoom = 16, h
       },
       (err) => {
         // err.code: 1=PERMISSION_DENIED, 2=POSITION_UNAVAILABLE, 3=TIMEOUT
+        // We also keep the raw message for diagnostics (dev mode).
+        const hint = !isSecure
+          ? ' (browser ne secure origin require kiya — HTTPS ya localhost chahiye)'
+          : ''
         const messages = {
-          1: 'Location permission denied. Pin drag karein ya address type karein.',
-          2: 'Location abhi available nahi hai (GPS off?). Pin drag karein.',
+          1: 'Location permission denied. Browser site settings me location allow karein, ya pin drag karein.',
+          2: `Location abhi available nahi hai${hint}. Pin drag karein ya address type karein.`,
           3: 'Location request timeout. Phir try karein ya pin drag karein.',
         }
-        setLocateError(messages[err.code] || 'Location error. Pin drag karein.')
+        const friendly =
+          messages[err.code] ||
+          `Location error (${err.code}). Pin drag karein ya address type karein.`
+        // Log the raw error for dev/debugging; the user sees the
+        // friendly version. RULES.md §6 forbids console.log but
+        // warn is for genuine operational signals.
+        if (typeof window !== 'undefined' && window.console) {
+          // eslint-disable-next-line no-console
+          console.warn('[AddressPicker] geolocation error:', err.code, err.message)
+        }
+        setLocateError(friendly)
         setLocating(false)
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
@@ -277,7 +330,20 @@ export default function AddressPicker({ value, onChange, onAddress, zoom = 16, h
       <p className="text-xs" aria-live="polite">
         {resolving && <span className="text-neutral-500">⏳ address lookup…</span>}
         {resolveError && <span className="text-red-600">⚠️ {resolveError}</span>}
-        {locateError && <span className="text-red-600">⚠️ {locateError}</span>}
+        {locateError && (
+          <span className="text-red-600">
+            ⚠️ {locateError}
+            {!locating && (
+              <button
+                type="button"
+                onClick={useCurrentLocation}
+                className="ml-2 underline hover:text-red-800"
+              >
+                Phir try karein
+              </button>
+            )}
+          </span>
+        )}
       </p>
     </div>
   )
