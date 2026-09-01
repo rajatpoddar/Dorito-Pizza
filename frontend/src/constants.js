@@ -104,6 +104,7 @@ export function heroImageFor(item) {
 
 export const STATUS_FLOW = [
   { key: 'pending', label: 'Order Placed', icon: '🧾' },
+  { key: 'accepted', label: 'Accepted', icon: '✅' },
   { key: 'preparing', label: 'Preparing', icon: '👨‍🍳' },
   { key: 'ready', label: 'Ready', icon: '🍕' },
   { key: 'out_for_delivery', label: 'Out for Delivery', icon: '🛵' },
@@ -112,6 +113,8 @@ export const STATUS_FLOW = [
 
 export const STATUS_LABELS = {
   pending: 'Pending',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
   preparing: 'Preparing',
   ready: 'Ready for Delivery',
   out_for_delivery: 'Out for Delivery',
@@ -121,6 +124,8 @@ export const STATUS_LABELS = {
 
 export const STATUS_COLORS = {
   pending: 'bg-amber-100 text-amber-800 border-amber-200',
+  accepted: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  rejected: 'bg-red-100 text-red-700 border-red-200',
   preparing: 'bg-blue-100 text-blue-800 border-blue-200',
   ready: 'bg-violet-100 text-violet-800 border-violet-200',
   out_for_delivery: 'bg-sky-100 text-sky-800 border-sky-200',

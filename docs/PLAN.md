@@ -454,12 +454,12 @@ Dev mode: `docker compose up db` for database only; run Flask + Vite locally wit
 - [ ] Footer links to legal pages
 - [ ] Razorpay integration (UPI + Cards) — replace manual UPI confirmation
 
-### 9.5 Manager Accept/Reject Flow (Phase 5.5)
-- [ ] New order status: `accepted` between `pending` and `preparing`
-- [ ] Manager accept/reject endpoints with reject reason
-- [ ] Admin UI: Accept/Reject buttons on pending orders
-- [ ] Customer WhatsApp + in-app notification on accept/reject
-- [ ] Kitchen only sees `accepted` orders (not raw `pending`)
+### 9.5 Manager Accept/Reject Flow (Phase 5.5) ✅ COMPLETE
+- [x] New order status: `accepted` between `pending` and `preparing`
+- [x] Manager accept/reject endpoints with reject reason
+- [x] Admin UI: Accept/Reject buttons on pending orders
+- [x] Customer WhatsApp + in-app notification on accept/reject
+- [x] Kitchen only sees `accepted` orders (not raw `pending`)
 
 ### 9.6 Larger Features
 - [ ] Android APK via Capacitor (`frontend/android/`, `build_apk.sh`)

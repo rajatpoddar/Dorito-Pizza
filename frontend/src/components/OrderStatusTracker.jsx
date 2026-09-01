@@ -10,6 +10,14 @@ export default function OrderStatusTracker({ status }) {
     )
   }
 
+  if (status === 'rejected') {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+        ❌ This order was rejected by the restaurant.
+      </div>
+    )
+  }
+
   const activeIndex = STATUS_FLOW.findIndex((s) => s.key === status)
 
   return (

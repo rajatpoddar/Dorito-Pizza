@@ -324,6 +324,24 @@ def order_confirmed_message(order: Order) -> str:
     return msg
 
 
+def order_accepted_message(order: Order) -> str:
+    return (
+        "🍕 *Dorito Pizza and Bakery*\n\n"
+        f"✅ Aapka order *{order.order_number}* accept ho gaya!\n"
+        "Kitchen me ban raha hai. Thoda wait karein.\n\n"
+        f"{_shop_footer()}"
+    )
+
+
+def order_rejected_message(order: Order, reason: str = "") -> str:
+    return (
+        "🍕 *Dorito Pizza and Bakery*\n\n"
+        f"❌ Aapka order *{order.order_number}* reject kar diya gaya.\n"
+        + (f"Reason: {reason}\n\n" if reason else "\n")
+        + f"{_shop_footer()}"
+    )
+
+
 def out_for_delivery_message(order: Order) -> str:
     return (
         "🍕 *Dorito Pizza and Bakery*\n\n"

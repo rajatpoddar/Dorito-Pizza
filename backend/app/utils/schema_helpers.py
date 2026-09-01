@@ -15,6 +15,7 @@ REQUIRED_COLUMNS = [
     ("orders", "offer_id", "INTEGER", "INTEGER"),
     ("orders", "offer_code", "VARCHAR(30)", "VARCHAR(30)"),
     ("orders", "discount_amount", "NUMERIC(10,2) DEFAULT 0", "NUMERIC(10,2) DEFAULT 0"),
+    ("orders", "reject_reason", "VARCHAR(255)", "VARCHAR(255)"),
     ("users", "last_login_at", "TIMESTAMP", "TIMESTAMPTZ"),
     ("users", "marketing_optin", "BOOLEAN DEFAULT 1", "BOOLEAN DEFAULT TRUE"),
     ("categories", "image_url", "VARCHAR(255)", "VARCHAR(255)"),

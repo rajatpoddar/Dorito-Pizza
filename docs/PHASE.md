@@ -6,7 +6,7 @@
 
 **Legend:** ✅ done · 🟡 in progress · ⏳ planned · ❌ blocked · 🚫 dropped
 
-**Last updated:** 2026-09-01 (Phase 5.2 complete: combo packs with admin CRUD + customer menu section)
+**Last updated:** 2026-09-01 (Phase 5.6 complete: manager accept/reject flow with WhatsApp + in-app notifications)
 
 ---
 
@@ -299,16 +299,32 @@ Priority order — quick wins first, then bigger features.
 | P5.18 | Footer links updated to include legal pages | ⏳ | `Footer.jsx` |
 | P5.19 | Razorpay integration (UPI + Cards) | ⏅ | Replace manual UPI with Razorpay checkout; `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` env vars; order creation flow |
 
-### 6.6 Manager Accept/Reject Flow (2 days)
+### 6.6 Manager Accept/Reject Flow (2 days) ✅ COMPLETE
 
 | ID | Deliverable | Status | Notes |
 |----|-------------|--------|-------|
-| P5.20 | New order status: `accepted` between `pending` and `preparing` | ⏳ | Update `Order.STATUSES` enum + `STATUS_FLOW` in `constants.js` |
-| P5.21 | `POST /api/admin/orders/:id/accept` endpoint | ⏳ | Manager reviews → accepts → order moves to kitchen queue |
-| P5.22 | `POST /api/admin/orders/:id/reject` endpoint with `reject_reason` | ⏳ | Manager rejects → customer gets WhatsApp notification + in-app notif with reason |
-| P5.23 | Admin ManageOrders UI: Accept / Reject buttons on pending orders | ⏳ | Reject opens modal for reason input |
-| P5.24 | Customer notification on accept/reject | ⏳ | WhatsApp + in-app: "Order accepted 🎉" or "Order rejected: {reason} 😔" |
-| P5.25 | Kitchen only sees `accepted` orders (not raw `pending`) | ⏳ | Update `kitchen.py` query filter |
+| P5.20 | New order status: `accepted` between `pending` and `preparing` | ✅ | `Order.STATUSES` enum updated + `STATUS_FLOW` in `constants.js` + schema auto-heal |
+| P5.21 | `POST /api/admin/orders/:id/accept` endpoint | ✅ | Manager reviews → accepts → order moves to kitchen queue |
+| P5.22 | `POST /api/admin/orders/:id/reject` endpoint with `reject_reason` | ✅ | Manager rejects → customer gets WhatsApp notification + in-app notif with reason |
+| P5.23 | Admin ManageOrders UI: Accept / Reject buttons on pending orders | ✅ | Reject opens modal for reason input |
+| P5.24 | Customer notification on accept/reject | ✅ | WhatsApp + in-app: "Order accepted 🎉" or "Order rejected: {reason} 😔" |
+| P5.25 | Kitchen only sees `accepted` orders (not raw `pending`) | ✅ | `kitchen.py` query filter updated, ALLOWED transitions updated |
+
+**New order lifecycle:** `pending → accepted → preparing → ready → out_for_delivery → delivered`
+
+**Changes:**
+- `Order` model: added `STATUS_ACCEPTED`, `STATUS_REJECTED`, `reject_reason` column
+- `admin.py`: new `/accept` + `/reject` endpoints with validation
+- `kitchen.py`: filters only `accepted` + `preparing` + `ready`; transitions from `accepted → preparing`
+- `notify.py`: in-app notifications for `accepted` and `rejected` events
+- `whatsapp.py`: new `order_accepted_message()` + `order_rejected_message()` templates
+- `constants.js`: `STATUS_FLOW`, `STATUS_LABELS`, `STATUS_COLORS` updated with `accepted`/`rejected`
+- `ManageOrdersPage.jsx`: Accept/Reject buttons on pending orders + reject reason modal
+- `OrderStatusTracker.jsx`: handles `rejected` terminal state
+- `TrackOrderPage.jsx`: shows rejection reason
+- `schema_helpers.py`: auto-heals `reject_reason` column on existing DBs
+- `test_full_lifecycle.py`: e2e test for accept flow + new `test_order_reject_flow`
+- Dashboard `active_orders` count includes `accepted` status |
 
 ### 6.7 Production Hardening (ongoing)
 

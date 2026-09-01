@@ -28,7 +28,7 @@ def dashboard():
     delivered_today = [o for o in todays_orders if o.status == Order.STATUS_DELIVERED]
     active_orders = Order.query.filter(
         Order.status.in_(
-            [Order.STATUS_PENDING, Order.STATUS_PREPARING,
+            [Order.STATUS_PENDING, Order.STATUS_ACCEPTED, Order.STATUS_PREPARING,
              Order.STATUS_READY, Order.STATUS_OUT_FOR_DELIVERY]
         )
     ).count()
@@ -134,6 +134,60 @@ def cancel_order(order_id):
     order.status = Order.STATUS_CANCELLED
     db.session.commit()
     notify_svc.notify_order_event(order, "cancelled")
+    return jsonify(order=order.to_dict())
+
+
+@admin_bp.patch("/orders/<int:order_id>/accept")
+@roles_required("manager")
+def accept_order(order_id):
+    """Manager accepts a pending order — moves it to accepted status."""
+    order = db.session.get(Order, order_id)
+    if order is None:
+        return jsonify(error="Order not found"), 404
+    if order.status != Order.STATUS_PENDING:
+        return jsonify(error="Only pending orders can be accepted"), 409
+
+    order.status = Order.STATUS_ACCEPTED
+    db.session.commit()
+    notify_svc.notify_order_event(order, "accepted")
+    # Send WhatsApp notification
+    from app.services import whatsapp as wa_svc
+    wa_svc.queue_message(
+        order.customer_phone,
+        wa_svc.order_accepted_message(order),
+        kind=wa_svc.WhatsAppOutbox.KIND_ORDER_CONFIRMED,
+        order_id=order.id,
+    )
+    return jsonify(order=order.to_dict())
+
+
+@admin_bp.patch("/orders/<int:order_id>/reject")
+@roles_required("manager")
+def reject_order(order_id):
+    """Manager rejects a pending order with a reason."""
+    order = db.session.get(Order, order_id)
+    if order is None:
+        return jsonify(error="Order not found"), 404
+    if order.status != Order.STATUS_PENDING:
+        return jsonify(error="Only pending orders can be rejected"), 409
+
+    data = request.get_json(silent=True) or {}
+    reason = (data.get("reason") or "").strip()
+    if not reason:
+        return jsonify(error="Rejection reason is required"), 400
+
+    order.status = Order.STATUS_REJECTED
+    order.reject_reason = reason
+    db.session.commit()
+    notify_svc.notify_order_event(order, "rejected", reason=reason)
+    # Send WhatsApp notification
+    from app.services import whatsapp as wa_svc
+    wa_svc.queue_message(
+        order.customer_phone,
+        wa_svc.order_rejected_message(order, reason),
+        kind=wa_svc.WhatsAppOutbox.KIND_ORDER_CONFIRMED,
+        order_id=order.id,
+    )
     return jsonify(order=order.to_dict())
 
 

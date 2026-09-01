@@ -17,13 +17,21 @@ def notify_user(user_id: int | None, title: str, body: str = "", type_: str = No
     db.session.commit()
 
 
-def notify_order_event(order, event: str) -> None:
+def notify_order_event(order, event: str, reason: str = None) -> None:
     """Customer-facing in-app notifications on order status changes."""
     cfg = current_app.config
     shop = cfg["SHOP_NAME"]
     if event == "confirmed":
         notify_user(order.customer_id, "Order confirmed 🎉",
                     f"{order.order_number} receive ho gaya. Total ₹{float(order.total_amount):.0f}",
+                    Notification.TYPE_ORDER, order.id)
+    elif event == "accepted":
+        notify_user(order.customer_id, "Order accepted 🎉",
+                    f"{order.order_number} accept ho gaya. Kitchen me ban raha hai.",
+                    Notification.TYPE_ORDER, order.id)
+    elif event == "rejected":
+        notify_user(order.customer_id, "Order rejected 😔",
+                    f"{order.order_number} reject kar diya gaya. Reason: {reason or 'No reason provided'}",
                     Notification.TYPE_ORDER, order.id)
     elif event == "preparing":
         notify_user(order.customer_id, "Kitchen me ban raha hai 👨‍🍳",

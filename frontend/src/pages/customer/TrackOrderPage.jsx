@@ -199,6 +199,11 @@ function LiveTracking() {
             🎉 Offer {order.offer_code} applied — saved {fmtINR(order.discount_amount)}
           </p>
         )}
+        {order.reject_reason && (
+          <p className="mt-2 text-xs text-red-600">
+            ❌ Rejection reason: {order.reject_reason}
+          </p>
+        )}
         {order.delivery_otp && (
           <div className="mt-3 rounded-xl border-2 border-dashed border-brand-gold bg-amber-50 p-3 text-center">
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">

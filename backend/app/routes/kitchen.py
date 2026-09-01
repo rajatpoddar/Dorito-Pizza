@@ -10,7 +10,7 @@ kitchen_bp = Blueprint("kitchen", __name__, url_prefix="/api/kitchen")
 
 # allowed transitions made by the kitchen
 ALLOWED = {
-    Order.STATUS_PENDING: Order.STATUS_PREPARING,
+    Order.STATUS_ACCEPTED: Order.STATUS_PREPARING,
     Order.STATUS_PREPARING: Order.STATUS_READY,
 }
 
@@ -21,7 +21,7 @@ def queue():
     """All live kitchen orders (oldest first)."""
     orders = (
         Order.query.filter(
-            Order.status.in_([Order.STATUS_PENDING, Order.STATUS_PREPARING, Order.STATUS_READY])
+            Order.status.in_([Order.STATUS_ACCEPTED, Order.STATUS_PREPARING, Order.STATUS_READY])
         )
         .order_by(Order.created_at.asc())
         .all()

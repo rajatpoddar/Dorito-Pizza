@@ -9,6 +9,8 @@ class Order(db.Model):
 
     # ---- status flow ----
     STATUS_PENDING = "pending"
+    STATUS_ACCEPTED = "accepted"
+    STATUS_REJECTED = "rejected"
     STATUS_PREPARING = "preparing"
     STATUS_READY = "ready"
     STATUS_OUT_FOR_DELIVERY = "out_for_delivery"
@@ -16,6 +18,8 @@ class Order(db.Model):
     STATUS_CANCELLED = "cancelled"
     STATUSES = (
         STATUS_PENDING,
+        STATUS_ACCEPTED,
+        STATUS_REJECTED,
         STATUS_PREPARING,
         STATUS_READY,
         STATUS_OUT_FOR_DELIVERY,
@@ -56,6 +60,7 @@ class Order(db.Model):
     delivery_charge = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     offer_id = db.Column(db.Integer, db.ForeignKey("offers.id"), nullable=True)
     offer_code = db.Column(db.String(30), nullable=True)
+    reject_reason = db.Column(db.String(255), nullable=True)
 
     # 4-digit OTP the customer shares with the delivery partner
     delivery_otp = db.Column(db.String(4), nullable=True)
@@ -111,6 +116,7 @@ class Order(db.Model):
             "discount_amount": float(self.discount_amount or 0),
             "delivery_charge": float(self.delivery_charge or 0),
             "offer_code": self.offer_code,
+            "reject_reason": self.reject_reason,
             "delivery_agent": (
                 {"id": self.delivery_agent.id, "name": self.delivery_agent.name}
                 if self.delivery_agent

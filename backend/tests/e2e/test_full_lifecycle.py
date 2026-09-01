@@ -80,7 +80,11 @@ def test_full_order_lifecycle_pending_to_delivered(app, client):
     )
     assert bad.status_code == 400
 
-    # --- 3. Kitchen advance: pending → preparing → ready ---------------
+    # --- 3. Manager accepts the order ---------------------------------
+    r = client.patch(f"/api/admin/orders/{oid}/accept", headers=mgr_h)
+    assert r.status_code in (200, 201) and r.get_json()["order"]["status"] == "accepted"
+
+    # --- 3a. Kitchen sees accepted order and advances ------------------
     r = client.patch(f"/api/kitchen/orders/{oid}/status", headers=cook_h)
     assert r.status_code in (200, 201) and r.get_json()["order"]["status"] == "preparing"
     r = client.patch(f"/api/kitchen/orders/{oid}/status", headers=cook_h)
@@ -128,3 +132,72 @@ def test_full_order_lifecycle_pending_to_delivered(app, client):
     r = client.get(f"/api/orders/{oid}/track?phone=9876543210")
     assert r.status_code == 200
     assert r.get_json()["order"]["status"] == "delivered"
+
+
+@pytest.mark.e2e
+def test_order_reject_flow(app, client):
+    """Test the manager reject flow: pending -> rejected with reason."""
+    with app.app_context():
+        cat = Category(name="Burger", display_order=2)
+        db.session.add(cat)
+        db.session.flush()
+        item = MenuItem(category_id=cat.id, name="Veg Burger", price=50)
+        db.session.add(item)
+        db.session.flush()
+
+        mgr = User(name="Manager", phone="6202965250", role=User.ROLE_MANAGER)
+        mgr.set_password("Manager@123")
+        cook = User(name="Cook", phone="9939794303", role=User.ROLE_COOK)
+        cook.set_password("Cook@123")
+        db.session.add_all([mgr, cook])
+        db.session.commit()
+        item_id = item.id
+
+    def login(phone, password):
+        r = client.post("/api/auth/login", json={"phone": phone, "password": password})
+        assert r.status_code == 200, r.get_json()
+        return r.get_json()["access_token"]
+
+    mgr_h = {"Authorization": f"Bearer {login('6202965250', 'Manager@123')}"}
+
+    # Place order
+    r = client.post(
+        "/api/orders",
+        json={
+            "items": [{"menu_item_id": item_id, "quantity": 1}],
+            "customer_name": "Reject Test",
+            "customer_phone": "9876543211",
+            "delivery_address": "Test Address, Palojori, Deoghar",
+            "payment_mode": "cod",
+        },
+    )
+    assert r.status_code in (200, 201)
+    order = r.get_json()["order"]
+    oid = order["id"]
+    assert order["status"] == "pending"
+
+    # Reject without reason -> 400
+    r = client.patch(f"/api/admin/orders/{oid}/reject", headers=mgr_h, json={})
+    assert r.status_code == 400
+
+    # Reject with reason
+    r = client.patch(
+        f"/api/admin/orders/{oid}/reject",
+        headers=mgr_h,
+        json={"reason": "Item out of stock"},
+    )
+    assert r.status_code in (200, 201)
+    rejected = r.get_json()["order"]
+    assert rejected["status"] == "rejected"
+    assert rejected["reject_reason"] == "Item out of stock"
+
+    # Try to accept a rejected order -> 409
+    r = client.patch(f"/api/admin/orders/{oid}/accept", headers=mgr_h)
+    assert r.status_code == 409
+
+    # Kitchen should not see rejected orders
+    cook_h = {"Authorization": f"Bearer {login('9939794303', 'Cook@123')}"}
+    r = client.get("/api/kitchen/orders", headers=cook_h)
+    assert r.status_code == 200
+    kitchen_orders = r.get_json()["orders"]
+    assert all(o["id"] != oid for o in kitchen_orders)

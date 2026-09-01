@@ -10,6 +10,8 @@ export default function ManageOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [rejectModal, setRejectModal] = useState(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   const load = useCallback(() => {
     api
@@ -34,6 +36,30 @@ export default function ManageOrdersPage() {
   const assign = async (orderId, agentId) => {
     try {
       await api.patch(`/admin/orders/${orderId}/assign`, { agent_id: Number(agentId) })
+      load()
+    } catch (e) {
+      alert(errMessage(e))
+    }
+  }
+
+  const accept = async (orderId) => {
+    try {
+      await api.patch(`/admin/orders/${orderId}/accept`)
+      load()
+    } catch (e) {
+      alert(errMessage(e))
+    }
+  }
+
+  const reject = async (orderId) => {
+    if (!rejectReason.trim()) {
+      alert('Please enter a reason for rejection')
+      return
+    }
+    try {
+      await api.patch(`/admin/orders/${orderId}/reject`, { reason: rejectReason.trim() })
+      setRejectModal(null)
+      setRejectReason('')
       load()
     } catch (e) {
       alert(errMessage(e))
@@ -73,6 +99,41 @@ export default function ManageOrdersPage() {
         <p className="py-16 text-center text-neutral-500">No orders found.</p>
       )}
 
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="card mx-4 w-full max-w-md p-6">
+            <h2 className="mb-4 font-display text-lg font-bold">Reject Order</h2>
+            <p className="mb-2 text-sm text-neutral-600">
+              Are you sure you want to reject order #{orders.find(o => o.id === rejectModal)?.order_number}?
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Enter reason for rejection..."
+              className="mb-4 w-full rounded-lg border p-2 text-sm"
+              rows={3}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setRejectModal(null)
+                  setRejectReason('')
+                }}
+                className="rounded-lg border px-4 py-2 text-sm font-semibold hover:bg-neutral-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => reject(rejectModal)}
+                className="rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600"
+              >
+                Reject Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
         {orders.map((o) => (
           <div key={o.id} className="card p-4">
@@ -95,28 +156,49 @@ export default function ManageOrdersPage() {
               <br />📍 {o.delivery_address}
             </p>
 
+            {o.reject_reason && (
+              <p className="mt-2 text-xs text-red-600">Reason: {o.reject_reason}</p>
+            )}
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
               <span className="text-lg font-bold">{fmtINR(o.total_amount)}</span>
               <div className="flex items-center gap-2">
-                <select
-                  value={o.delivery_agent?.id || ''}
-                  onChange={(e) => assign(o.id, e.target.value)}
-                  className="input !w-auto !py-1.5 text-xs"
-                >
-                  <option value="">🛵 Assign agent…</option>
-                  {agents.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name} ({a.phone})
-                    </option>
-                  ))}
-                </select>
-                {o.status !== 'delivered' && o.status !== 'cancelled' && (
-                  <button
-                    onClick={() => cancel(o.id)}
-                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
-                  >
-                    Cancel
-                  </button>
+                {o.status === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => accept(o.id)}
+                      className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600"
+                    >
+                      ✅ Accept
+                    </button>
+                    <button
+                      onClick={() => setRejectModal(o.id)}
+                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      ❌ Reject
+                    </button>
+                  </>
+                )}
+                {o.status !== 'pending' && o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'rejected' && (
+                  <>
+                    <select
+                      value={o.delivery_agent?.id || ''}
+                      onChange={(e) => assign(o.id, e.target.value)}
+                      className="input !w-auto !py-1.5 text-xs"
+                    >
+                      <option value="">🛵 Assign agent…</option>
+                      {agents.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} ({a.phone})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => cancel(o.id)}
+                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      Cancel
+                    </button>
+                  </>
                 )}
               </div>
             </div>
