@@ -14,6 +14,7 @@ from app.utils.ratelimit import (
     AUTH_LOGIN,
     AUTH_OTP_SEND,
     AUTH_OTP_VERIFY,
+    AUTH_PROFILE_UPDATE,
     AUTH_REGISTER,
     limit as rl_limit,
 )
@@ -225,6 +226,138 @@ def update_preferences():
         if not isinstance(data["marketing_optin"], bool):
             return jsonify(error="marketing_optin must be true or false"), 400
         user.marketing_optin = data["marketing_optin"]
+
+    db.session.commit()
+    return jsonify(user=user.to_dict())
+
+
+# ----------------------------------------------------------------- Profile update (name + phone via OTP)
+@auth_bp.post("/otp/send-update")
+@jwt_required()
+@rl_limit(limiter, AUTH_OTP_SEND)
+def otp_send_update():
+    """Send OTP to a *new* phone number for profile update."""
+    from flask_jwt_extended import verify_jwt_in_request
+
+    verify_jwt_in_request()
+    current_user = db_get_current_user()
+    if current_user is None:
+        return jsonify(error="User not found"), 404
+
+    data = request.get_json(silent=True) or {}
+    new_phone = _normalise_phone(data.get("phone", ""))
+
+    if len(new_phone) != 10:
+        return jsonify(error="Enter a valid 10-digit mobile number"), 400
+
+    # Reject if this number is already taken by another user
+    existing = User.query.filter_by(phone=new_phone).first()
+    if existing and existing.id != current_user.id:
+        return jsonify(error="Ye number kisi aur account se juda hai"), 409
+
+    cfg = current_app.config
+    now = datetime.now(timezone.utc)
+
+    # Rate limit: max sends per window + resend cooldown
+    recent_window_start = now - timedelta(seconds=cfg["OTP_EXPIRY_SECONDS"])
+    recent = OtpCode.query.filter(
+        OtpCode.phone == new_phone,
+        OtpCode.purpose == "phone_update",
+        OtpCode.created_at >= recent_window_start,
+    ).count()
+    if recent >= cfg["OTP_MAX_PER_WINDOW"]:
+        return jsonify(
+            error="Bahut zyada OTP requests. 10 min baad koshish karein."
+        ), 429
+
+    last = OtpCode.query.filter_by(phone=new_phone, purpose="phone_update").order_by(OtpCode.id.desc()).first()
+    if last and (now - _aware(last.created_at)).total_seconds() < cfg["OTP_RESEND_COOLDOWN"]:
+        wait = int(cfg["OTP_RESEND_COOLDOWN"] - (now - _aware(last.created_at)).total_seconds())
+        return jsonify(
+            error=f"Thoda rukein — {wait}s baad resend karein.",
+            retry_after=wait,
+        ), 429
+
+    code, _row = OtpCode.issue(new_phone, cfg["OTP_EXPIRY_SECONDS"], purpose="phone_update")
+    row = whatsapp.queue_message(new_phone, whatsapp.update_phone_otp_message(code),
+                                 kind=whatsapp.WhatsAppOutbox.KIND_OTP)
+    db.session.commit()
+
+    wa_configured = bool(cfg.get("EVOLUTION_API_KEY"))
+    debug = bool(cfg.get("OTP_DEBUG", False) or not wa_configured)
+    if debug and row.status == whatsapp.WhatsAppOutbox.STATUS_QUEUED and not wa_configured:
+        try:
+            row.status = whatsapp.WhatsAppOutbox.STATUS_SKIPPED
+            row.error = "EVOLUTION_API_KEY not configured"
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    return jsonify(
+        sent=True,
+        wa_status=row.status,
+        wa_configured=wa_configured,
+        debug_otp=code if debug else None,
+    )
+
+
+@auth_bp.put("/me/profile")
+@rl_limit(limiter, AUTH_PROFILE_UPDATE)
+def update_profile():
+    """Update customer name and/or phone number.
+
+    Phone update requires OTP verification (purpose=phone_update).
+    Name can be updated directly.
+    """
+    from flask_jwt_extended import verify_jwt_in_request
+
+    verify_jwt_in_request()
+    user = db_get_current_user()
+    if user is None:
+        return jsonify(error="User not found"), 404
+    if not user.is_active:
+        return jsonify(error="This account has been deactivated"), 403
+
+    data = request.get_json(silent=True) or {}
+
+    # --- Name update (direct) ---
+    if "name" in data:
+        new_name = (data["name"] or "").strip()
+        if not new_name:
+            return jsonify(error="Name cannot be empty"), 400
+        if len(new_name) > 120:
+            return jsonify(error="Name too long (max 120 characters)"), 400
+        user.name = new_name
+
+    # --- Phone update (requires OTP) ---
+    if "phone" in data and "otp" in data:
+        new_phone = _normalise_phone(data["phone"])
+        otp_code = re.sub(r"\D", "", data.get("otp", ""))
+
+        if len(new_phone) != 10:
+            return jsonify(error="Enter a valid 10-digit mobile number"), 400
+        if len(otp_code) != 6:
+            return jsonify(error="6-digit OTP required"), 400
+        if new_phone == user.phone:
+            return jsonify(error="New number same as current number"), 400
+
+        # Check no one else owns this number
+        existing = User.query.filter_by(phone=new_phone).first()
+        if existing and existing.id != user.id:
+            return jsonify(error="Ye number kisi aur account se juda hai"), 409
+
+        ok, err = OtpCode.verify(new_phone, otp_code, purpose="phone_update")
+        if not ok:
+            return jsonify(error=err), 401
+
+        # Link guest orders from old phone to this user under new phone
+        Order.query.filter_by(customer_phone=user.phone, customer_id=user.id).update(
+            {"customer_phone": new_phone}
+        )
+        user.phone = new_phone
+
+    elif "phone" in data:
+        return jsonify(error="Phone update requires OTP. Pehle OTP bhejein."), 400
 
     db.session.commit()
     return jsonify(user=user.to_dict())

@@ -12,11 +12,30 @@ const MAX_ADDRESSES = 5
  * Shows: name, phone, marketing opt-in toggle, saved addresses.
  */
 export default function AccountPage() {
-  const { user, updatePreferences, logout } = useAuth()
+  const { user, updatePreferences, updateProfile, logout } = useAuth()
   const [optin, setOptin] = useState(Boolean(user?.marketing_optin))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  // --- name edit state ---
+  const [editingName, setEditingName] = useState(false)
+  const [nameValue, setNameValue] = useState(user?.name || '')
+  const [nameSaving, setNameSaving] = useState(false)
+  const [nameSaved, setNameSaved] = useState(false)
+
+  // --- phone edit state ---
+  const [editingPhone, setEditingPhone] = useState(false)
+  const [phoneValue, setPhoneValue] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [otpDebug, setOtpDebug] = useState('')
+  const [otpStep, setOtpStep] = useState('phone') // 'phone' | 'otp'
+  const [phoneSending, setPhoneSending] = useState(false)
+  const [phoneSaving, setPhoneSaving] = useState(false)
+  const [phoneSaved, setPhoneSaved] = useState(false)
+  const [phoneError, setPhoneError] = useState('')
+  const [resendTimer, setResendTimer] = useState(0)
 
   // --- addresses state ---
   const [addresses, setAddresses] = useState([])
@@ -30,6 +49,18 @@ export default function AccountPage() {
   useEffect(() => {
     setOptin(Boolean(user?.marketing_optin))
   }, [user?.marketing_optin])
+
+  // Reset form when user changes
+  useEffect(() => {
+    setNameValue(user?.name || '')
+  }, [user?.name])
+
+  // Resend countdown
+  useEffect(() => {
+    if (resendTimer <= 0) return
+    const id = setTimeout(() => setResendTimer((t) => t - 1), 1000)
+    return () => clearTimeout(id)
+  }, [resendTimer])
 
   const loadAddresses = () => {
     setAddrLoading(true)
@@ -114,6 +145,81 @@ export default function AccountPage() {
     }
   }
 
+  // --- name handlers ---
+  const saveName = async () => {
+    if (!nameValue.trim()) return
+    setNameSaving(true)
+    setError('')
+    setNameSaved(false)
+    try {
+      await updateProfile({ name: nameValue.trim() })
+      setEditingName(false)
+      setNameSaved(true)
+      setTimeout(() => setNameSaved(false), 2000)
+    } catch (err) {
+      setError(errMessage(err))
+    } finally {
+      setNameSaving(false)
+    }
+  }
+
+  // --- phone handlers ---
+  const sendUpdateOtp = async () => {
+    if (!phoneValue.trim() || phoneValue.trim().length !== 10) {
+      setPhoneError('10-digit number daalein')
+      return
+    }
+    setPhoneSending(true)
+    setPhoneError('')
+    setOtpDebug('')
+    try {
+      const res = await api.post('/auth/otp/send-update', { phone: phoneValue.trim() })
+      setOtpSent(true)
+      setOtpStep('otp')
+      setResendTimer(60)
+      if (res.data.debug_otp) setOtpDebug(res.data.debug_otp)
+    } catch (err) {
+      setPhoneError(errMessage(err))
+    } finally {
+      setPhoneSending(false)
+    }
+  }
+
+  const verifyAndUpdatePhone = async () => {
+    if (!otpCode.trim() || otpCode.trim().length !== 6) {
+      setPhoneError('6-digit OTP daalein')
+      return
+    }
+    setPhoneSaving(true)
+    setPhoneError('')
+    try {
+      await updateProfile({ phone: phoneValue.trim(), otp: otpCode.trim() })
+      setEditingPhone(false)
+      setPhoneSaved(true)
+      setOtpSent(false)
+      setOtpStep('phone')
+      setOtpCode('')
+      setPhoneValue('')
+      setOtpDebug('')
+      setTimeout(() => setPhoneSaved(false), 2000)
+    } catch (err) {
+      setPhoneError(errMessage(err))
+    } finally {
+      setPhoneSaving(false)
+    }
+  }
+
+  const cancelPhoneEdit = () => {
+    setEditingPhone(false)
+    setOtpSent(false)
+    setOtpStep('phone')
+    setPhoneValue('')
+    setOtpCode('')
+    setPhoneError('')
+    setOtpDebug('')
+    setResendTimer(0)
+  }
+
   if (!user) {
     return (
       <main className="mx-auto max-w-md px-4 py-10 text-center">
@@ -130,15 +236,109 @@ export default function AccountPage() {
       {/* profile card */}
       <section className="card mt-4 p-5">
         <h2 className="mb-3 font-semibold">Profile</h2>
+
+        {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+        {nameSaved && <p className="mb-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">✅ Name updated</p>}
+        {phoneSaved && <p className="mb-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">✅ Phone number updated</p>}
+
         <dl className="divide-y divide-neutral-100 text-sm">
-          <div className="flex justify-between gap-4 py-2">
+          {/* --- Name --- */}
+          <div className="flex items-center justify-between gap-4 py-2">
             <dt className="text-neutral-500">Name</dt>
-            <dd className="font-medium text-neutral-800">{user.name || '—'}</dd>
+            {editingName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  className="input w-40 py-1 text-sm"
+                  value={nameValue}
+                  onChange={(e) => setNameValue(e.target.value)}
+                  autoFocus
+                />
+                <button onClick={saveName} disabled={nameSaving} className="text-xs font-semibold text-brand-red hover:underline disabled:opacity-50">
+                  {nameSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button onClick={() => { setEditingName(false); setNameValue(user.name || '') }} className="text-xs text-neutral-400 hover:text-neutral-600">
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <dd className="font-medium text-neutral-800">{user.name || '—'}</dd>
+                <button onClick={() => setEditingName(true)} className="text-xs text-neutral-400 hover:text-brand-red" title="Edit name">
+                  ✏️
+                </button>
+              </div>
+            )}
           </div>
-          <div className="flex justify-between gap-4 py-2">
+
+          {/* --- Phone --- */}
+          <div className="flex items-center justify-between gap-4 py-2">
             <dt className="text-neutral-500">Phone</dt>
-            <dd className="font-medium text-neutral-800">+91 {user.phone}</dd>
+            {editingPhone ? (
+              <div className="flex-1 space-y-2">
+                {phoneError && <p className="rounded bg-red-50 px-2 py-1 text-xs text-red-600">{phoneError}</p>}
+                {otpDebug && (
+                  <p className="rounded bg-yellow-50 px-2 py-1 text-xs text-yellow-700">
+                    🔑 Dev OTP: <span className="font-mono font-bold">{otpDebug}</span>
+                  </p>
+                )}
+                {otpStep === 'phone' ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-neutral-500">+91</span>
+                    <input
+                      className="input w-32 py-1 text-sm"
+                      placeholder="10-digit number"
+                      value={phoneValue}
+                      onChange={(e) => setPhoneValue(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      autoFocus
+                    />
+                    <button onClick={sendUpdateOtp} disabled={phoneSending} className="text-xs font-semibold text-brand-red hover:underline disabled:opacity-50">
+                      {phoneSending ? 'Sending…' : 'Send OTP'}
+                    </button>
+                    <button onClick={cancelPhoneEdit} className="text-xs text-neutral-400 hover:text-neutral-600">
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-neutral-500">
+                      OTP bhej diya <span className="font-medium">+91 {phoneValue}</span> par
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        className="input w-28 py-1 text-sm font-mono"
+                        placeholder="6-digit OTP"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        autoFocus
+                        maxLength={6}
+                      />
+                      <button onClick={verifyAndUpdatePhone} disabled={phoneSaving} className="text-xs font-semibold text-brand-red hover:underline disabled:opacity-50">
+                        {phoneSaving ? 'Verifying…' : 'Verify & Update'}
+                      </button>
+                      <button onClick={cancelPhoneEdit} className="text-xs text-neutral-400 hover:text-neutral-600">
+                        Cancel
+                      </button>
+                    </div>
+                    <button
+                      onClick={sendUpdateOtp}
+                      disabled={resendTimer > 0 || phoneSending}
+                      className="text-xs text-neutral-400 hover:text-brand-red disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : 'Resend OTP'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <dd className="font-medium text-neutral-800">+91 {user.phone}</dd>
+                <button onClick={() => { setEditingPhone(true); setPhoneValue(''); setOtpStep('phone'); setOtpSent(false); setOtpCode(''); setPhoneError(''); setOtpDebug('') }} className="text-xs text-neutral-400 hover:text-brand-red" title="Change phone number">
+                  ✏️
+                </button>
+              </div>
+            )}
           </div>
+
           <div className="flex justify-between gap-4 py-2">
             <dt className="text-neutral-500">Role</dt>
             <dd className="font-medium text-neutral-800 capitalize">{user.role}</dd>

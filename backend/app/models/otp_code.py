@@ -25,28 +25,28 @@ class OtpCode(db.Model):
         return hashlib.sha256(f"{salt}:{code}".encode()).hexdigest()
 
     @classmethod
-    def issue(cls, phone: str, ttl_seconds: int) -> tuple[str, "OtpCode"]:
-        """Create a new OTP (consumes old ones). Returns (plain_code, row)."""
+    def issue(cls, phone: str, ttl_seconds: int, purpose: str = "login") -> tuple[str, "OtpCode"]:
+        """Create a new OTP (consumes old ones for the same purpose). Returns (plain_code, row)."""
         import secrets
 
         code = f"{secrets.randbelow(10 ** 6):06d}"
-        cls.query.filter_by(phone=phone, purpose="login", consumed_at=None).update(
+        cls.query.filter_by(phone=phone, purpose=purpose, consumed_at=None).update(
             {"consumed_at": datetime.now(timezone.utc)}
         )
         row = cls(
             phone=phone,
             code_hash=cls.hash_code(code),
-            purpose="login",
+            purpose=purpose,
             expires_at=datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
         )
         db.session.add(row)
         return code, row
 
     @classmethod
-    def verify(cls, phone: str, code: str, max_attempts: int = 5) -> tuple[bool, str]:
+    def verify(cls, phone: str, code: str, max_attempts: int = 5, purpose: str = "login") -> tuple[bool, str]:
         """Check an OTP. Returns (ok, error_message)."""
         row = (
-            cls.query.filter_by(phone=phone, purpose="login", consumed_at=None)
+            cls.query.filter_by(phone=phone, purpose=purpose, consumed_at=None)
             .order_by(cls.id.desc())
             .first()
         )

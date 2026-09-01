@@ -218,7 +218,7 @@ function MenuRow({ item, onToggle, onRemove, onEdit }) {
 
       {/* Toggle switch — one tap to flip availability */}
       <button
-        onClick={onToggle}
+        onClick={() => onToggle(item)}
         className={`relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 ${
           item.is_available ? 'bg-green-500' : 'bg-neutral-300'
         }`}
@@ -430,15 +430,28 @@ function ItemEditModal({ item, categories, onClose, onSave }) {
             value={draft.description || ''}
             onChange={(e) => setDraft({ ...draft, description: e.target.value })}
           />
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={draft.is_available}
-                onChange={(e) => setDraft({ ...draft, is_available: e.target.checked })}
-              />
-              Available for ordering
-            </label>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-neutral-600">Available for ordering</span>
+              <button
+                type="button"
+                onClick={() => setDraft({ ...draft, is_available: !draft.is_available })}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 ${
+                  draft.is_available ? 'bg-green-500' : 'bg-neutral-300'
+                }`}
+                role="switch"
+                aria-checked={draft.is_available}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out ${
+                    draft.is_available ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className={`text-xs font-semibold ${draft.is_available ? 'text-green-600' : 'text-neutral-400'}`}>
+                {draft.is_available ? 'In Stock' : 'Sold Out'}
+              </span>
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"

@@ -304,6 +304,15 @@ def otp_message(code: str) -> str:
     )
 
 
+def update_phone_otp_message(code: str) -> str:
+    return (
+        "🍕 *Dorito Pizza and Bakery*\n\n"
+        f"Aapke naye number ke liye OTP: *{code}*\n"
+        "⏳ 10 minute valid hai. Kisi se share na karein.\n\n"
+        f"{_shop_footer()}"
+    )
+
+
 def order_confirmed_message(order: Order) -> str:
     cfg = current_app.config
     lines = "\n".join(f"• {i.item_name} × {i.quantity}" for i in order.items)

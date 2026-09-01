@@ -58,6 +58,14 @@ export function AuthProvider({ children }) {
     return res.data.user
   }, [])
 
+  /** Update the current user's profile (name, phone via OTP).
+   *  PUTs /api/auth/me/profile and refreshes local user state. */
+  const updateProfile = useCallback(async (payload) => {
+    const res = await api.put('/auth/me/profile', payload)
+    setUser(res.data.user)
+    return res.data.user
+  }, [])
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center text-neutral-500">
@@ -68,7 +76,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, login, register, sendOtp, verifyOtp, logout, updatePreferences, errMessage }}
+      value={{ user, login, register, sendOtp, verifyOtp, logout, updatePreferences, updateProfile, errMessage }}
     >
       {children}
     </AuthContext.Provider>

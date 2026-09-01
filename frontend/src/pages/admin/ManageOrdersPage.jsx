@@ -1,8 +1,37 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import api, { errMessage } from '../../api/client'
 import StatusBadge from '../../components/StatusBadge'
 import { usePolling } from '../../hooks'
 import { fmtINR, fmtTime, STATUS_LABELS } from '../../constants'
+
+// ── notification sounds from /public/sounds/ ──
+const NEW_ORDER_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/01_new_order.mp3') : null
+const READY_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/07_driver_pickup_ready.mp3') : null
+
+function playNewOrderSound() {
+  if (NEW_ORDER_AUDIO) {
+    NEW_ORDER_AUDIO.currentTime = 0
+    NEW_ORDER_AUDIO.play().catch(() => {}) // autoplay may be blocked
+  }
+}
+
+function playReadySound() {
+  if (READY_AUDIO) {
+    READY_AUDIO.currentTime = 0
+    READY_AUDIO.play().catch(() => {}) 
+  }
+}
+
+function sendBrowserNotification(title, body) {
+  if (!('Notification' in window)) return
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/favicon.ico' })
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then((p) => {
+      if (p === 'granted') new Notification(title, { body, icon: '/favicon.ico' })
+    })
+  }
+}
 
 export default function ManageOrdersPage() {
   const [orders, setOrders] = useState([])
@@ -12,11 +41,77 @@ export default function ManageOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [rejectModal, setRejectModal] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [newOrderIds, setNewOrderIds] = useState(new Set())
+  const [readyOrderIds, setReadyOrderIds] = useState(new Set())
+  const prevOrderIdsRef = useRef(new Set())
+  const isFirstLoadRef = useRef(true)
 
   const load = useCallback(() => {
     api
       .get('/admin/orders', { params: statusFilter ? { status: statusFilter } : {} })
-      .then((r) => setOrders(r.data.orders))
+      .then((r) => {
+        const newOrders = r.data.orders
+        const newIds = new Set(newOrders.map(o => o.id))
+
+        // Detect NEW orders (id wasn't in previous set)
+        if (!isFirstLoadRef.current) {
+          const prevIds = prevOrderIdsRef.current
+          const freshOrders = newOrders.filter(o => o.status === 'pending' && !prevIds.has(o.id))
+          if (freshOrders.length > 0) {
+            // Sound + browser notification
+            playNewOrderSound()
+            freshOrders.forEach(o => {
+              sendBrowserNotification(
+                `🍕 New Order: ${o.order_number}`,
+                `${o.customer_name} — ${o.items.map(i => i.item_name).join(', ')}\nTotal: ₹${o.total_amount}`
+              )
+            })
+            // Highlight new orders for 10s
+            setNewOrderIds(prev => {
+              const next = new Set(prev)
+              freshOrders.forEach(o => next.add(o.id))
+              return next
+            })
+            setTimeout(() => {
+              setNewOrderIds(prev => {
+                const next = new Set(prev)
+                freshOrders.forEach(o => next.delete(o.id))
+                return next
+              })
+            }, 10000)
+          }
+
+          // Detect orders that just became 'ready' — highlight for driver assignment
+          const newlyReady = newOrders.filter(o => o.status === 'ready' && !readyOrderIds.has(o.id))
+          if (newlyReady.length > 0) {
+            playReadySound()
+            newlyReady.forEach(o => {
+              sendBrowserNotification(
+                `🛵 Ready: ${o.order_number}`,
+                `Order ready hai — driver assign karein!` 
+              )
+            })
+            setReadyOrderIds(prev => {
+              const next = new Set(prev)
+              newlyReady.forEach(o => next.add(o.id))
+              return next
+            })
+          }
+          // Remove highlight for orders no longer ready
+          setReadyOrderIds(prev => {
+            const next = new Set(prev)
+            for (const id of next) {
+              const o = newOrders.find(ord => ord.id === id)
+              if (!o || o.status !== 'ready') next.delete(id)
+            }
+            return next
+          })
+        }
+
+        prevOrderIdsRef.current = newIds
+        isFirstLoadRef.current = false
+        setOrders(newOrders)
+      })
       .catch((e) => setError(errMessage(e)))
       .finally(() => setLoading(false))
   }, [statusFilter])
@@ -80,6 +175,11 @@ export default function ManageOrdersPage() {
     <main className="mx-auto max-w-5xl px-4 pb-16 pt-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-2xl font-bold">All Orders</h1>
+        {newOrderIds.size > 0 && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700 animate-pulse">
+            🔴 {newOrderIds.size} new order{newOrderIds.size > 1 ? 's' : ''}!
+          </span>
+        )}
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -136,7 +236,16 @@ export default function ManageOrdersPage() {
 
       <div className="space-y-3">
         {orders.map((o) => (
-          <div key={o.id} className="card p-4">
+          <div
+            key={o.id}
+            className={`card p-4 transition-all duration-300 ${
+              newOrderIds.has(o.id)
+                ? 'ring-2 ring-red-400 bg-red-50 shadow-lg'
+                : readyOrderIds.has(o.id)
+                  ? 'ring-2 ring-amber-400 bg-amber-50 shadow-lg'
+                  : ''
+            }`}
+          >
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-bold text-brand-dark">{o.order_number}</p>
@@ -158,6 +267,11 @@ export default function ManageOrdersPage() {
 
             {o.reject_reason && (
               <p className="mt-2 text-xs text-red-600">Reason: {o.reject_reason}</p>
+            )}
+            {o.status === 'ready' && (
+              <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
+                🛵 Driver assign karein!
+              </p>
             )}
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
               <span className="text-lg font-bold">{fmtINR(o.total_amount)}</span>

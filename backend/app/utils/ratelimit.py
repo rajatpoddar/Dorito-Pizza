@@ -23,6 +23,7 @@ AUTH_OTP_SEND = "3 per 10 minutes"        # /api/auth/otp/send
 AUTH_OTP_VERIFY = "10 per 10 minutes"     # /api/auth/otp/verify
 AUTH_LOGIN = "10 per 10 minutes"          # /api/auth/login (password)
 AUTH_REGISTER = "5 per 10 minutes"        # /api/auth/register
+AUTH_PROFILE_UPDATE = "5 per 10 minutes"   # /api/auth/me/profile
 ORDERS_GUEST_CHECKOUT = "10 per 10 minutes"  # POST /api/orders (guest)
 
 

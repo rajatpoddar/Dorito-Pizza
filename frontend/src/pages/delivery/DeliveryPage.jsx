@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import api, { errMessage } from '../../api/client'
 import StatusBadge from '../../components/StatusBadge'
 import { usePolling } from '../../hooks'
@@ -6,17 +6,45 @@ import { fmtINR, fmtTime } from '../../constants'
 
 const POLL_MS = 5000
 
+// ── notification sounds ──
+const DRIVER_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/06_driver_new_delivery.mp3') : null
+
+function playDriverSound() {
+  if (DRIVER_AUDIO) {
+    DRIVER_AUDIO.currentTime = 0
+    DRIVER_AUDIO.play().catch(() => {})
+  }
+}
+
 export default function DeliveryPage() {
   const [orders, setOrders] = useState([])
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
   const [otp, setOtp] = useState({}) // { orderId: '1234' }
+  const prevOrderIdsRef = useRef(new Set())
+  const isFirstLoadRef = useRef(true)
 
   const load = useCallback(
     () =>
       api
         .get('/delivery/orders')
-        .then((r) => setOrders(r.data.orders))
+        .then((r) => {
+          const newOrders = r.data.orders
+          const newIds = new Set(newOrders.map(o => o.id))
+
+          // Detect NEW orders assigned to this driver (sound alert)
+          if (!isFirstLoadRef.current) {
+            const prevIds = prevOrderIdsRef.current
+            const freshOrders = newOrders.filter(o => !prevIds.has(o.id))
+            if (freshOrders.length > 0) {
+              playDriverSound()
+            }
+          }
+
+          prevOrderIdsRef.current = newIds
+          isFirstLoadRef.current = false
+          setOrders(newOrders)
+        })
         .catch((e) => setError(errMessage(e))),
     [],
   )

@@ -1,9 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import api, { errMessage } from '../../api/client'
 import { usePolling } from '../../hooks'
 import { fmtINR, fmtTime } from '../../constants'
 
 const POLL_MS = 4000
+
+// ── notification sound ──
+const KITCHEN_AUDIO = typeof Audio !== 'undefined' ? new Audio('/sounds/04_kitchen_new_order.mp3') : null
+
+function playKitchenSound() {
+  if (KITCHEN_AUDIO) {
+    KITCHEN_AUDIO.currentTime = 0
+    KITCHEN_AUDIO.play().catch(() => {})
+  }
+}
 
 const COLUMN_DEFS = [
   { key: 'pending', title: '🔥 New Orders', tone: 'border-amber-300', bg: 'bg-amber-50', action: 'Start Preparing', next: 'preparing', toneBtn: 'bg-amber-500 hover:bg-amber-600' },
@@ -15,12 +25,30 @@ export default function KitchenDisplayPage() {
   const [orders, setOrders] = useState([])
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
+  const prevOrderIdsRef = useRef(new Set())
+  const isFirstLoadRef = useRef(true)
 
   const load = useCallback(
     () =>
       api
         .get('/kitchen/orders')
-        .then((r) => setOrders(r.data.orders))
+        .then((r) => {
+          const newOrders = r.data.orders
+          const newIds = new Set(newOrders.map(o => o.id))
+
+          // Detect NEW pending orders (sound alert)
+          if (!isFirstLoadRef.current) {
+            const prevIds = prevOrderIdsRef.current
+            const freshOrders = newOrders.filter(o => o.status === 'pending' && !prevIds.has(o.id))
+            if (freshOrders.length > 0) {
+              playKitchenSound()
+            }
+          }
+
+          prevOrderIdsRef.current = newIds
+          isFirstLoadRef.current = false
+          setOrders(newOrders)
+        })
         .catch((e) => setError(errMessage(e))),
     [],
   )
